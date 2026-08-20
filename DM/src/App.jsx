@@ -17,7 +17,9 @@ const App = () => {
     const [categorias, setCategorias] = useState([]);
     const [pedidosAdmin, setPedidosAdmin] = useState([]);
     const [clienteAuth, setClienteAuth] = useState(false);
-    const [clienteDados, setClienteDados] = useState({ nome: '', celular: '' });
+    const [clienteDados, setClienteDados] = useState({ nome: '', celular: '', cep: '', endereco: '', referencia: '', lat: null, lng: null });
+    const [erroCep, setErroCep] = useState('');
+    const [cepBuscando, setCepBuscando] = useState(false);
     const [meusPedidos, setMeusPedidos] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const [adminView, setAdminView] = useState('pedidos');
@@ -32,6 +34,60 @@ const App = () => {
     
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
+
+    const calcularDistancia = (lat1, lon1, lat2, lon2) => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    const buscarCep = async (cepInput) => {
+        const cepLimpo = cepInput.replace(/\D/g, '');
+        if (cepLimpo.length !== 8) return;
+        setCepBuscando(true);
+        setErroCep('');
+        try {
+            const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+            const data = await res.json();
+            if (data.erro) {
+                setErroCep('CEP não encontrado.');
+                setCepBuscando(false);
+                return;
+            }
+            
+            const q = `${data.logradouro}, ${data.localidade}, ${data.uf}, Brasil`;
+            const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+            const geoData = await geoRes.json();
+            
+            let lat = null;
+            let lng = null;
+            if (geoData && geoData.length > 0) {
+                lat = parseFloat(geoData[0].lat);
+                lng = parseFloat(geoData[0].lon);
+                
+                const lojaLat = -23.5329; // Coordenadas fixas da loja (como no mapa)
+                const lojaLng = -46.7920;
+                const dist = calcularDistancia(lojaLat, lojaLng, lat, lng);
+                
+                if (dist > (restaurante.raio_entrega || 5)) {
+                    setErroCep(`Não fazemos entrega neste local. Distância: ${dist.toFixed(1)}km (Raio Máx: ${restaurante.raio_entrega}km).`);
+                }
+            } else {
+                 setErroCep('Atenção: Não foi possível validar a distância exata. Confirme com a loja.');
+            }
+            
+            setClienteDados(prev => ({
+                ...prev,
+                endereco: `${data.logradouro}, , ${data.bairro}, ${data.localidade} - ${data.uf}`,
+                lat, lng
+            }));
+        } catch (err) {
+            setErroCep('Erro ao buscar CEP.');
+        }
+        setCepBuscando(false);
+    };
 
     const carregarPedidosAdminLocal = () => {
         if (!supabase) return;
@@ -88,6 +144,9 @@ const App = () => {
         }
         localStorage.setItem('cliente_nome', clienteDados.nome);
         localStorage.setItem('cliente_celular', clienteDados.celular);
+        localStorage.setItem('cliente_cep', clienteDados.cep || '');
+        localStorage.setItem('cliente_endereco', clienteDados.endereco || '');
+        localStorage.setItem('cliente_referencia', clienteDados.referencia || '');
         setClienteAuth(true);
         
         if (supabase) {
@@ -149,9 +208,13 @@ const App = () => {
         
         const nome = localStorage.getItem('cliente_nome');
         const cel = localStorage.getItem('cliente_celular');
+        const cep = localStorage.getItem('cliente_cep') || '';
+        const end = localStorage.getItem('cliente_endereco') || '';
+        const ref = localStorage.getItem('cliente_referencia') || '';
+        
         if (nome && cel) {
             setClienteAuth(true);
-            setClienteDados({ nome, celular: cel });
+            setClienteDados({ nome, celular: cel, cep, endereco: end, referencia: ref });
         }
         
         if (localStorage.getItem('isAdminBypass') === 'true') {
@@ -323,7 +386,12 @@ const App = () => {
                     const map = window.L.map('mapa-raio-container', { zoomControl: false, attributionControl: false }).setView([lojaLat, lojaLng], 13);
                     window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
                     window.L.circle([lojaLat, lojaLng], { color: '#d79e51', fillColor: '#d79e51', fillOpacity: 0.2, radius: raioMeters }).addTo(map);
-                    window.L.marker([lojaLat, lojaLng]).addTo(map);
+                    window.L.marker([lojaLat, lojaLng]).addTo(map).bindPopup('Restaurante');
+                    
+                    if (clienteDados.lat && clienteDados.lng) {
+                        window.L.marker([clienteDados.lat, clienteDados.lng]).addTo(map).bindPopup('Sua Entrega');
+                    }
+
                     mapRef.current = map;
                     setMapaAberto(true);
                 } catch (e) { console.log("Erro ao carregar mapa", e); }
@@ -340,9 +408,15 @@ const App = () => {
             alert("A loja está fechada no momento.");
             return;
         }
-        if (checkoutForm.tipo === 'entrega' && !checkoutForm.endereco) {
-            alert("Preencha o endereço de entrega.");
-            return;
+        if (checkoutForm.tipo === 'entrega') {
+            if (!clienteDados.endereco) {
+                alert("Cadastre seu endereço no seu Perfil para solicitar entrega.");
+                return;
+            }
+            if (erroCep && erroCep.includes('Não fazemos entrega')) {
+                alert("Seu endereço está fora da nossa área de entrega.");
+                return;
+            }
         }
 
         const totalCalc = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
@@ -355,8 +429,8 @@ const App = () => {
             status: 'novo',
             itens: {
                 lanches: carrinho,
-                endereco: checkoutForm.endereco,
-                referencia: checkoutForm.referencia,
+                endereco: checkoutForm.tipo === 'entrega' ? clienteDados.endereco : 'Retirada',
+                referencia: checkoutForm.tipo === 'entrega' ? clienteDados.referencia : '',
                 pagamento: checkoutForm.pagamento,
                 troco: checkoutForm.troco
             }
@@ -965,8 +1039,17 @@ const App = () => {
                                                 
                                                 {checkoutForm.tipo === 'entrega' && (
                                                     <div className="space-y-3 animate-fade-in">
-                                                        <textarea placeholder="Rua, Número, Bairro..." value={checkoutForm.endereco} onChange={e => setCheckoutForm({...checkoutForm, endereco: e.target.value})} rows="2" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm"></textarea>
-                                                        <input type="text" placeholder="Ponto de Referência" value={checkoutForm.referencia} onChange={e => setCheckoutForm({...checkoutForm, referencia: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                                        <div className="bg-[#1f1e22] p-3 rounded-lg border border-gray-700 text-sm">
+                                                            <p className="text-gray-400 text-xs mb-1">Entregar em:</p>
+                                                            <p className="text-white">{clienteDados.endereco || 'Nenhum endereço cadastrado no perfil.'}</p>
+                                                            {clienteDados.referencia && <p className="text-gray-400 text-xs mt-1">Ref: {clienteDados.referencia}</p>}
+                                                            <button onClick={() => setView('perfil')} className="text-[#d79e51] text-xs mt-2 underline">Editar no Perfil</button>
+                                                        </div>
+                                                        {erroCep && erroCep.includes('Não fazemos entrega') && (
+                                                            <div className="bg-red-900/30 p-2 rounded border border-red-700 text-red-400 text-xs text-center font-bold">
+                                                                {erroCep}
+                                                            </div>
+                                                        )}
                                                         
                                                         <div className="relative w-full h-40 bg-[#1a191c] rounded-lg border border-gray-700 overflow-hidden">
                                                             <div id="mapa-raio-container" className="absolute inset-0 w-full h-full z-0"></div>
@@ -1069,7 +1152,21 @@ const App = () => {
                                         <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Celular (WhatsApp)</label>
                                         <input type="tel" value={clienteDados.celular} onChange={e => setClienteDados({...clienteDados, celular: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" required />
                                     </div>
-                                    <button type="submit" className="w-full bg-[#d79e51] text-[#1a191c] font-bold text-xl py-3.5 rounded-xl shadow-lg mt-4">ACESSAR</button>
+                                    <div>
+                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">CEP</label>
+                                        <input type="text" value={clienteDados.cep || ''} onBlur={(e) => buscarCep(e.target.value)} onChange={e => setClienteDados({...clienteDados, cep: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" placeholder="Ex: 01001-000" />
+                                        {cepBuscando && <p className="text-[10px] text-gray-400 mt-1"><i className="fas fa-spinner fa-spin"></i> Buscando endereço e validando área...</p>}
+                                        {erroCep && <p className="text-[10px] text-red-400 mt-1 font-bold">{erroCep}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Endereço (Rua, Número, Bairro)</label>
+                                        <textarea value={clienteDados.endereco || ''} onChange={e => setClienteDados({...clienteDados, endereco: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" rows="2" placeholder="Digite seu endereço completo"></textarea>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Ponto de Referência</label>
+                                        <input type="text" value={clienteDados.referencia || ''} onChange={e => setClienteDados({...clienteDados, referencia: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" />
+                                    </div>
+                                    <button type="submit" className="w-full bg-[#d79e51] text-[#1a191c] font-bold text-xl py-3.5 rounded-xl shadow-lg mt-4">ACESSAR / SALVAR</button>
                                 </form>
                             ) : (
                                 <div className="w-full max-w-sm space-y-4">
@@ -1078,12 +1175,19 @@ const App = () => {
                                             <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Nome Completo</span>
                                             <span className="text-white text-lg font-medium">{clienteDados.nome}</span>
                                         </div>
-                                        <div>
+                                        <div className="mb-4 border-b border-gray-700 pb-4">
                                             <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Celular (WhatsApp)</span>
                                             <span className="text-[#d79e51] text-lg tracking-wide">{clienteDados.celular}</span>
                                         </div>
+                                        <div>
+                                            <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Endereço de Entrega</span>
+                                            <span className="text-gray-200 text-sm block">{clienteDados.endereco || 'Não cadastrado'}</span>
+                                            {clienteDados.referencia && <span className="block text-gray-400 text-xs mt-1">Ref: {clienteDados.referencia}</span>}
+                                            {erroCep && erroCep.includes('Não fazemos entrega') && <span className="block text-red-400 text-xs mt-1 font-bold">{erroCep}</span>}
+                                        </div>
                                     </div>
-                                    <button onClick={() => {setClienteAuth(false); setClienteDados({nome:'', celular:''}); localStorage.removeItem('cliente_nome'); localStorage.removeItem('cliente_celular');}} className="w-full bg-transparent border border-gray-600 text-gray-300 py-3 rounded-xl hover:text-white">Sair da Conta</button>
+                                    <button onClick={() => setClienteAuth(false)} className="w-full bg-[#363539] border border-gray-600 text-white py-3 rounded-xl hover:bg-gray-700 mb-2 transition-colors">Editar Dados / Endereço</button>
+                                    <button onClick={() => {setClienteAuth(false); setClienteDados({nome:'', celular:'', cep:'', endereco:'', referencia:'', lat:null, lng:null}); setErroCep(''); localStorage.removeItem('cliente_nome'); localStorage.removeItem('cliente_celular'); localStorage.removeItem('cliente_cep'); localStorage.removeItem('cliente_endereco'); localStorage.removeItem('cliente_referencia');}} className="w-full bg-transparent border border-red-900/50 text-red-400 py-3 rounded-xl hover:bg-red-900/10 transition-colors">Sair da Conta</button>
                                 </div>
                             )}
 
