@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 const App = () => {
     const [view, setView] = useState('home');
     const [carrinho, setCarrinho] = useState([]);
-    const [restauranteId, setRestauranteId] = useState(null);
     const [restaurante, setRestaurante] = useState({
         nome: 'DOGS DO MIRSO',
         is_aberto: true,
@@ -28,17 +27,15 @@ const App = () => {
     ]);
 
     const [pedidosAdmin, setPedidosAdmin] = useState([]);
-    
     const [clienteAuth, setClienteAuth] = useState(false);
     const [clienteDados, setClienteDados] = useState({ nome: '', celular: '' });
     const [meusPedidos, setMeusPedidos] = useState([]);
-    
     const [isAdmin, setIsAdmin] = useState(false);
     const [adminView, setAdminView] = useState('pedidos');
     const [adminMenuOpen, setAdminMenuOpen] = useState(false);
     const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
     const [produtoEditando, setProdutoEditando] = useState(null);
-
+    const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState({ aberto: false, id: null });
     const [checkoutForm, setCheckoutForm] = useState({ tipo: 'entrega', endereco: '', pagamento: 'Cartão', troco: '', referencia: '' });
     const [mapaAberto, setMapaAberto] = useState(false);
     const mapRef = useRef(null);
@@ -169,6 +166,21 @@ const App = () => {
         setView('home');
     };
 
+    const excluirProduto = (id) => {
+        setModalConfirmacaoAberto({ aberto: true, id: id });
+    };
+
+    const confirmarExclusao = () => {
+        if (modalConfirmacaoAberto.id) {
+            setProdutos(produtos.filter(p => p.id !== modalConfirmacaoAberto.id));
+        }
+        setModalConfirmacaoAberto({ aberto: false, id: null });
+    };
+
+    const cancelarExclusao = () => {
+        setModalConfirmacaoAberto({ aberto: false, id: null });
+    };
+
     const toggleStatusLoja = () => {
         setRestaurante({ ...restaurante, is_aberto: !restaurante.is_aberto });
     };
@@ -273,6 +285,26 @@ const App = () => {
         `);
         win.document.close();
     };
+    
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setProdutoEditando({ ...produtoEditando, imagem_url: reader.result });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    const handleSaveProduto = () => {
+        if(produtoEditando.id) {
+             setProdutos(produtos.map(p => p.id === produtoEditando.id ? produtoEditando : p));
+        } else {
+             setProdutos([...produtos, { ...produtoEditando, id: Math.random().toString(36).substring(2, 9) }]);
+        }
+        setModalProdutoAberto(false);
+    }
 
     const totalCarrinho = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const badgeCount = carrinho.reduce((sum, item) => sum + item.quantidade, 0);
@@ -330,7 +362,10 @@ const App = () => {
                         </div>
                         {adminView === 'cardapio' && (
                             <div className="flex items-center space-x-4">
-                                <button onClick={() => {setProdutoEditando(null); setModalProdutoAberto(true);}} className="bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] px-3 md:px-4 py-1.5 md:py-2 rounded-lg font-bold text-[11px] md:text-sm shadow-md transition-colors flex items-center">
+                                <button onClick={() => {
+                                    setProdutoEditando({nome: '', preco: '', categoria_id: categorias[0]?.id || '', descricao: '', ativo: true, is_destaque: false, imagem_url: ''}); 
+                                    setModalProdutoAberto(true);
+                                }} className="bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] px-3 md:px-4 py-1.5 md:py-2 rounded-lg font-bold text-[11px] md:text-sm shadow-md transition-colors flex items-center">
                                     <i className="fas fa-plus md:mr-2"></i> <span className="hidden md:inline">Novo Lanche</span>
                                 </button>
                             </div>
@@ -338,6 +373,7 @@ const App = () => {
                     </header>
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
+                        {}
                         {adminView === 'pedidos' && (
                             <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 lg:gap-6 h-full items-start">
                                 {['novo', 'preparo', 'pronto', 'finalizado'].map(status => (
@@ -387,6 +423,7 @@ const App = () => {
                             </div>
                         )}
 
+                        {}
                         {adminView === 'cardapio' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
                                 {produtos.map(p => {
@@ -400,7 +437,10 @@ const App = () => {
                                             <p className="text-[#d79e51] font-bold mb-3">R$ {Number(p.preco).toFixed(2).replace('.',',')}</p>
                                             <div className="flex justify-between items-center">
                                                 <span className={`text-xs px-2 py-1 rounded border ${p.ativo ? 'border-green-800 text-green-500' : 'border-red-800 text-red-500'}`}>{p.ativo ? 'Ativo' : 'Pausado'}</span>
-                                                <button onClick={() => {setProdutoEditando(p); setModalProdutoAberto(true);}} className="text-xs px-3 py-1.5 bg-[#d79e51] text-[#1a191c] rounded"><i className="fas fa-pen"></i></button>
+                                                <div className="flex space-x-2">
+                                                    <button onClick={() => excluirProduto(p.id)} className="text-xs px-3 py-1.5 bg-red-900/50 text-red-400 rounded hover:bg-red-800 hover:text-white transition-colors"><i className="fas fa-trash"></i></button>
+                                                    <button onClick={() => {setProdutoEditando(p); setModalProdutoAberto(true);}} className="text-xs px-3 py-1.5 bg-[#d79e51] text-[#1a191c] rounded"><i className="fas fa-pen"></i></button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -408,6 +448,7 @@ const App = () => {
                             </div>
                         )}
 
+                        {}
                         {adminView === 'configs' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -466,62 +507,59 @@ const App = () => {
                     </main>
                 </div>
                 
+                {}
                 {modalProdutoAberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                         <div className="bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
                             <div className="p-4 md:p-5 border-b border-gray-800 flex justify-between items-center flex-shrink-0">
-                                <h3 className="text-white text-lg font-bold">{produtoEditando ? 'Editar Produto' : 'Novo Produto'}</h3>
+                                <h3 className="text-white text-lg font-bold">{produtoEditando?.id ? 'Editar Produto' : 'Novo Produto'}</h3>
                                 <button onClick={() => setModalProdutoAberto(false)} className="text-gray-400 hover:text-[#d79e51] transition-colors"><i className="fas fa-times text-xl"></i></button>
                             </div>
                             <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-4">
                                 <div>
                                     <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Nome do Item *</label>
-                                    <input type="text" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.nome}/>
-                                </div>
-                                <div className="flex space-x-3">
-                                    <div className="flex-1">
-                                        <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Preço (R$) *</label>
-                                        <input type="number" step="0.01" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.preco}/>
-                                    </div>
-                                    <div className="flex-1">
-                                        <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Categoria *</label>
-                                        <select className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.categoria_id}>
-                                            {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                        </select>
-                                    </div>
+                                    <input type="text" value={produtoEditando?.nome || ''} onChange={(e) => setProdutoEditando({...produtoEditando, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
                                 </div>
                                 <div>
-                                    <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Descrição</label>
-                                    <textarea rows="2" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.descricao}></textarea>
-                                </div>
-                                <div className="flex items-center space-x-6 pt-3 border-t border-gray-800" key={produtoEditando ? produtoEditando.id : 'novo'}>
-                                    <label className="flex items-center space-x-2 cursor-pointer group">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked={produtoEditando ? produtoEditando.ativo : true}/>
-                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-[#d79e51] relative transition-colors after:content-[''] after:absolute after:top-0 after:left-0 after:bg-gray-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4"></div>
-                                        <span className="text-xs text-gray-300">Em Estoque</span>
-                                    </label>
-                                    <label className="flex items-center space-x-2 cursor-pointer group">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked={produtoEditando ? produtoEditando.is_destaque : false}/>
-                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-[#d79e51] relative transition-colors after:content-[''] after:absolute after:top-0 after:left-0 after:bg-gray-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4"></div>
-                                        <span className="text-xs text-gray-300">Destaque</span>
-                                    </label>
+                                    <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Preço (R$) *</label>
+                                    <input type="number" step="0.01" value={produtoEditando?.preco || ''} onChange={(e) => setProdutoEditando({...produtoEditando, preco: parseFloat(e.target.value) || 0})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
                                 </div>
                             </div>
                             <div className="p-4 border-t border-gray-800 flex justify-end space-x-3 bg-[#1f1e22] rounded-b-xl">
-                                <button onClick={() => setModalProdutoAberto(false)} className="px-4 py-2 rounded-lg font-bold text-xs text-gray-400 border border-gray-600 hover:text-white">Cancelar</button>
-                                <button onClick={() => setModalProdutoAberto(false)} className="px-5 py-2 bg-[#d79e51] text-[#1a191c] rounded-lg font-bold text-xs">Salvar</button>
+                                <button onClick={() => setModalProdutoAberto(false)} className="px-4 py-2 rounded-lg font-bold text-xs text-gray-400 border border-gray-600 hover:text-white transition-colors">Cancelar</button>
+                                <button onClick={handleSaveProduto} className="px-5 py-2 bg-[#d79e51] text-[#1a191c] rounded-lg font-bold text-xs shadow-md shadow-[#d79e51]/20 active:scale-95 transition-all">Salvar</button>
                             </div>
                         </div>
                     </div>
                 )}
-            </div>
+
+            {/* Modal de Confirmação de Exclusão */}
+            {modalConfirmacaoAberto.aberto && (
+                <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-[#242326] border border-red-900/50 rounded-xl w-full max-w-sm flex flex-col shadow-[0_15px_40px_rgba(0,0,0,0.5)] transform animate-fade-in">
+                        <div className="p-5 flex flex-col items-center text-center">
+                            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+                                <i className="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+                            </div>
+                            <h3 className="text-white text-lg font-bold mb-2">Excluir Produto?</h3>
+                            <p className="text-gray-400 text-sm">Tem certeza que deseja apagar este item permanentemente? Esta ação não pode ser desfeita.</p>
+                        </div>
+                        <div className="p-4 border-t border-gray-800 flex justify-end space-x-3 bg-[#1f1e22] rounded-b-xl">
+                            <button onClick={cancelarExclusao} className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm text-gray-400 border border-gray-600 hover:text-white transition-colors">Cancelar</button>
+                            <button onClick={confirmarExclusao} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all">Sim, Excluir</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#1a191c] lg:bg-gray-900 lg:bg-[url('https://images.unsplash.com/photo-1541214113241-21578d2d9b62?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')] bg-blend-overlay bg-cover bg-center bg-fixed flex justify-center items-start text-white font-sans">
-            <div className={`w-full ${view === 'home' || view === 'perfil' ? 'max-w-md' : 'max-w-5xl lg:max-w-6xl lg:mt-8 lg:rounded-2xl lg:mb-8'} min-h-screen lg:min-h-0 bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300`}>
+        <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full">
+            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto">
                 
+                {}
                 <div className="bg-[#1a191c] flex justify-center items-center py-2.5 border-b border-gray-800 text-xs shadow-md z-20">
                     <span className="text-gray-300 flex items-center">
                         <i className="fas fa-motorcycle text-[#d79e51] mr-2"></i> Delivery: {restaurante.tempo_entrega}
@@ -532,8 +570,9 @@ const App = () => {
                     </span>
                 </div>
 
-                <div className={`flex-1 overflow-y-auto pb-24 ${view === 'home' || view === 'perfil' ? '' : 'px-4 lg:px-8'}`}>
+                <div className="flex-1 overflow-y-auto pb-24">
                     
+                    {}
                     {view === 'home' && (
                         <div>
                             <div className="relative flex flex-col items-center mb-6">
@@ -548,7 +587,7 @@ const App = () => {
                                     <h2 className="font-bold text-white text-xl tracking-wider">{restaurante.nome}</h2>
                                     <p className="text-[#d79e51] text-xs tracking-[0.35em] mt-1 uppercase">Cardápio Digital</p>
                                 </div>
-                                <div className="w-full px-6 mt-6">
+                                <div className="w-full px-6 mt-6 max-w-sm mx-auto">
                                     <button onClick={fazerPedidoAgora} className="w-full bg-gradient-to-r from-[#d79e51] to-[#e8b776] text-[#2b2a2d] font-bold text-xl py-4 rounded-xl shadow-[0_6px_20px_rgba(215,158,81,0.25)] active:scale-95 transition-transform">
                                         FAZER PEDIDO AGORA
                                     </button>
@@ -576,8 +615,9 @@ const App = () => {
                         </div>
                     )}
 
+                    {}
                     {view === 'cardapio' && (
-                        <div className="pt-6">
+                        <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Nosso Cardápio</h2>
                             </div>
@@ -597,7 +637,7 @@ const App = () => {
                                     return (
                                         <div key={cat.id}>
                                             <h3 className="text-xl text-[#d79e51] mb-4 border-b border-gray-700/50 pb-2 uppercase">{cat.nome}</h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 gap-4">
                                                 {prods.map(p => (
                                                     <div key={p.id} className="bg-[#363539] rounded-2xl p-3 flex shadow border border-gray-700/50 h-full hover:border-[#d79e51]/40 transition-colors">
                                                         <img src={p.imagem_url} alt={p.nome} className="w-24 h-24 rounded-xl object-cover flex-shrink-0" />
@@ -621,8 +661,9 @@ const App = () => {
                         </div>
                     )}
 
+                    {}
                     {view === 'carrinho' && (
-                        <div className="pt-6">
+                        <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Seu Pedido</h2>
                             </div>
@@ -634,8 +675,8 @@ const App = () => {
                                     <button onClick={() => setView('cardapio')} className="mt-4 px-6 py-3 border border-[#d79e51] text-[#d79e51] rounded-xl font-bold uppercase hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors">Ver Cardápio</button>
                                 </div>
                             ) : (
-                                <div className="flex flex-col lg:flex-row lg:gap-8 items-start">
-                                    <div className="w-full lg:w-1/2 space-y-4 mb-8 lg:mb-0">
+                                <div className="flex flex-col items-start w-full">
+                                    <div className="w-full space-y-4 mb-8">
                                         <h3 className="text-[#d79e51] font-medium uppercase text-sm border-b border-gray-800 pb-2 mb-4">Resumo dos Itens</h3>
                                         {carrinho.map(item => (
                                             <div key={item.id} className="bg-[#363539] rounded-xl p-3 border border-gray-700">
@@ -656,7 +697,7 @@ const App = () => {
                                         ))}
                                     </div>
 
-                                    <div className="w-full lg:w-1/2 bg-[#242326] p-5 rounded-2xl border border-gray-800 shadow-lg">
+                                    <div className="w-full bg-[#242326] p-5 rounded-2xl border border-gray-800 shadow-lg">
                                         <div className="space-y-6">
                                             <div>
                                                 <h4 className="text-[#d79e51] font-medium uppercase mb-3 text-sm flex items-center"><i className="fas fa-map-marker-alt mr-2"></i> 1. Entrega</h4>
@@ -707,8 +748,9 @@ const App = () => {
                         </div>
                     )}
 
+                    {}
                     {view === 'pedidos' && (
-                        <div className="pt-6">
+                        <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Meus Pedidos</h2>
                             </div>
@@ -722,7 +764,7 @@ const App = () => {
                             ) : meusPedidos.length === 0 ? (
                                 <div className="text-center text-gray-500 mt-10">Nenhum pedido feito ainda.</div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4">
                                     {meusPedidos.map(p => {
                                         const info = JSON.parse(p.itens || '{}');
                                         return (
@@ -749,13 +791,14 @@ const App = () => {
                         </div>
                     )}
 
+                    {}
                     {view === 'perfil' && (
-                        <div className="pt-10 flex flex-col items-center min-h-[60vh]">
+                        <div className="pt-10 flex flex-col items-center min-h-[60vh] px-4">
                             <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
                             <p className="text-gray-400 text-sm text-center mb-8">Identifique-se para facilitar seus pedidos.</p>
                             
                             {!clienteAuth ? (
-                                <form onSubmit={(e) => { e.preventDefault(); salvarPerfil(); }} className="w-full space-y-4 px-4">
+                                <form onSubmit={(e) => { e.preventDefault(); salvarPerfil(); }} className="w-full max-w-sm space-y-4">
                                     <div>
                                         <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Nome Completo</label>
                                         <input type="text" value={clienteDados.nome} onChange={e => setClienteDados({...clienteDados, nome: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" required />
@@ -767,7 +810,7 @@ const App = () => {
                                     <button type="submit" className="w-full bg-[#d79e51] text-[#1a191c] font-bold text-xl py-3.5 rounded-xl shadow-lg mt-4">ACESSAR</button>
                                 </form>
                             ) : (
-                                <div className="w-full space-y-4 px-4">
+                                <div className="w-full max-w-sm space-y-4">
                                     <div className="bg-[#1f1e22] border border-gray-700 rounded-xl p-4">
                                         <div className="mb-4 border-b border-gray-700 pb-4">
                                             <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Nome Completo</span>
@@ -788,11 +831,12 @@ const App = () => {
                         </div>
                     )}
 
+                    {}
                     {view === 'admin-login' && (
                         <div className="pt-10 flex flex-col items-center px-6 min-h-[60vh]">
                             <h2 className="font-bold text-2xl text-[#d79e51] uppercase tracking-wider text-center mb-2">Acesso Restrito</h2>
                             <p className="text-gray-400 text-sm text-center mb-8">Área exclusiva para gestão.</p>
-                            <form onSubmit={loginAdminForm} className="w-full max-w-md space-y-4">
+                            <form onSubmit={loginAdminForm} className="w-full max-w-sm space-y-4">
                                 <div>
                                     <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase tracking-wider">E-mail</label>
                                     <input type="email" name="email" placeholder="admin@email.com" className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors text-sm" required />
@@ -810,7 +854,8 @@ const App = () => {
                     )}
                 </div>
 
-                <div className="fixed lg:absolute bottom-0 left-0 right-0 bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
+                {}
+                <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
                     <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
                         <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
                     </button>
