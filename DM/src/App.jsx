@@ -520,14 +520,56 @@ const App = () => {
                                     <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Nome do Item *</label>
                                     <input type="text" value={produtoEditando?.nome || ''} onChange={(e) => setProdutoEditando({...produtoEditando, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
                                 </div>
+                                <div className="flex space-x-3">
+                                    <div className="flex-1">
+                                        <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Preço (R$) *</label>
+                                        <input type="number" step="0.01" value={produtoEditando?.preco || ''} onChange={(e) => setProdutoEditando({...produtoEditando, preco: parseFloat(e.target.value) || 0})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Categoria *</label>
+                                        <select value={produtoEditando?.categoria_id || ''} onChange={(e) => setProdutoEditando({...produtoEditando, categoria_id: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm">
+                                            {categorias.map(c => (
+                                                <option key={c.id} value={c.id}>{c.nome}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
                                 <div>
-                                    <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Preço (R$) *</label>
-                                    <input type="number" step="0.01" value={produtoEditando?.preco || ''} onChange={(e) => setProdutoEditando({...produtoEditando, preco: parseFloat(e.target.value) || 0})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
+                                    <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Descrição</label>
+                                    <textarea value={produtoEditando?.descricao || ''} onChange={(e) => setProdutoEditando({...produtoEditando, descricao: e.target.value})} rows="2" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm"></textarea>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Foto (Opcional)</label>
+                                    <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-white text-xs mb-2" />
+                                    {produtoEditando?.imagem_url && (
+                                        <div className="w-full h-28 bg-gray-900 rounded-lg overflow-hidden border border-gray-700">
+                                            <img src={produtoEditando.imagem_url} alt="Preview" className="w-full h-full object-cover" />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center space-x-6 pt-3 border-t border-gray-800">
+                                    <label className="flex items-center space-x-2 cursor-pointer group">
+                                        <input type="checkbox" checked={produtoEditando?.ativo ?? true} onChange={(e) => setProdutoEditando({...produtoEditando, ativo: e.target.checked})} className="sr-only peer" />
+                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#d79e51] relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                                        <span className="text-xs text-gray-300">Em Estoque</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2 cursor-pointer group">
+                                        <input type="checkbox" checked={produtoEditando?.is_destaque ?? false} onChange={(e) => setProdutoEditando({...produtoEditando, is_destaque: e.target.checked})} className="sr-only peer" />
+                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#d79e51] relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                                        <span className="text-xs text-gray-300">Destaque</span>
+                                    </label>
                                 </div>
                             </div>
-                            <div className="p-4 border-t border-gray-800 flex justify-end space-x-3 bg-[#1f1e22] rounded-b-xl">
-                                <button onClick={() => setModalProdutoAberto(false)} className="px-4 py-2 rounded-lg font-bold text-xs text-gray-400 border border-gray-600 hover:text-white transition-colors">Cancelar</button>
-                                <button onClick={handleSaveProduto} className="px-5 py-2 bg-[#d79e51] text-[#1a191c] rounded-lg font-bold text-xs shadow-md shadow-[#d79e51]/20 active:scale-95 transition-all">Salvar</button>
+                            <div className="p-4 border-t border-gray-800 flex justify-between items-center bg-[#1f1e22] rounded-b-xl">
+                                <div>
+                                    {produtoEditando?.id && (
+                                        <button onClick={() => { setModalProdutoAberto(false); excluirProduto(produtoEditando.id); }} className="px-4 py-2 rounded-lg font-bold text-xs text-red-400 border border-red-900/50 hover:bg-red-900/20 transition-colors">Excluir</button>
+                                    )}
+                                </div>
+                                <div className="flex space-x-3">
+                                    <button onClick={() => setModalProdutoAberto(false)} className="px-4 py-2 rounded-lg font-bold text-xs text-gray-400 border border-gray-600 hover:text-white transition-colors">Cancelar</button>
+                                    <button onClick={handleSaveProduto} className="px-5 py-2 bg-[#d79e51] text-[#1a191c] rounded-lg font-bold text-xs shadow-md shadow-[#d79e51]/20 active:scale-95 transition-all">Salvar</button>
+                                </div>
                             </div>
                         </div>
                     </div>
