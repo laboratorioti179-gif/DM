@@ -494,15 +494,15 @@ const App = () => {
                                     <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Descrição</label>
                                     <textarea rows="2" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.descricao}></textarea>
                                 </div>
-                                <div className="flex items-center space-x-6 pt-3 border-t border-gray-800">
+                                <div className="flex items-center space-x-6 pt-3 border-t border-gray-800" key={produtoEditando ? produtoEditando.id : 'novo'}>
                                     <label className="flex items-center space-x-2 cursor-pointer group">
                                         <input type="checkbox" className="sr-only peer" defaultChecked={produtoEditando ? produtoEditando.ativo : true}/>
-                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#d79e51] relative"><div className="w-5 h-5 bg-gray-300 rounded-full absolute left-0 transition-all peer-checked:translate-x-4"></div></div>
+                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-[#d79e51] relative transition-colors after:content-[''] after:absolute after:top-0 after:left-0 after:bg-gray-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4"></div>
                                         <span className="text-xs text-gray-300">Em Estoque</span>
                                     </label>
                                     <label className="flex items-center space-x-2 cursor-pointer group">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked={produtoEditando?.is_destaque}/>
-                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#d79e51] relative"><div className="w-5 h-5 bg-gray-300 rounded-full absolute left-0 transition-all peer-checked:translate-x-4"></div></div>
+                                        <input type="checkbox" className="sr-only peer" defaultChecked={produtoEditando ? produtoEditando.is_destaque : false}/>
+                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-[#d79e51] relative transition-colors after:content-[''] after:absolute after:top-0 after:left-0 after:bg-gray-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4"></div>
                                         <span className="text-xs text-gray-300">Destaque</span>
                                     </label>
                                 </div>
