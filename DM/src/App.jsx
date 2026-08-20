@@ -91,10 +91,13 @@ const App = () => {
         try {
             // Fetch Products
             const { data: produtosData, error: produtosError } = await client.from('produtos').select('*');
-            if (produtosData && produtosData.length > 0) {
-                setProdutos(produtosData);
-            } else if (produtosError) {
+            if (produtosError) {
                 console.error("Erro ao carregar produtos:", produtosError);
+                if (produtosError.message && produtosError.message.includes("Failed to fetch")) {
+                    alert("FALHA DE REDE: O banco de dados Supabase recusou a conexão. Isso geralmente acontece se o seu projeto gratuito entrou em 'Pausa' por inatividade. Acesse o painel do Supabase.com e reative seu banco de dados.");
+                }
+            } else if (produtosData && produtosData.length > 0) {
+                setProdutos(produtosData);
             }
 
             // Fetch Categories
@@ -769,7 +772,7 @@ const App = () => {
                                     <p className="text-[#d79e51] text-xs tracking-[0.35em] mt-1 uppercase">Cardápio Digital</p>
                                 </div>
                                 <div className="w-full px-6 mt-6 max-w-sm mx-auto">
-                                    <button onClick={fazerPedidoAgora} className="w-full bg-gradient-to-r from-[#d79e51] to-[#e8b776] text-[#2b2a2d] font-bold text-xl py-4 rounded-xl shadow-[0_6px_20px_rgba(215,158,81,0.25)] active:scale-95 transition-transform">
+                                    <button onClick={fazerPedidoAgora} className="w-full font-bold text-xl py-4 rounded-xl shadow-lg active:scale-95 transition-transform" style={{ background: 'linear-gradient(to right, #d79e51, #e8b776)', color: '#1a191c' }}>
                                         FAZER PEDIDO AGORA
                                     </button>
                                 </div>
