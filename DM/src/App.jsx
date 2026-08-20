@@ -1,60 +1,53 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export default function App() {
-    // --- ESTADOS DO SISTEMA ---
-    const [view, setView] = useState('home'); 
-    const [adminView, setAdminView] = useState('pedidos');
+const App = () => {
+    const [view, setView] = useState('home');
     const [carrinho, setCarrinho] = useState([]);
-    const [clienteAuth, setClienteAuth] = useState(false);
-    
-    // Estados do Perfil
-    const [perfilNome, setPerfilNome] = useState('');
-    const [perfilCelular, setPerfilCelular] = useState('');
-    const [perfilMsg, setPerfilMsg] = useState({ text: '', type: '' });
-    const [redirectPosLogin, setRedirectPosLogin] = useState(null);
-
-    // Dados da Loja
+    const [restauranteId, setRestauranteId] = useState(null);
     const [restaurante, setRestaurante] = useState({
         nome: 'DOGS DO MIRSO',
         is_aberto: true,
         tempo_entrega: '30-45 min',
         raio_entrega: 5,
         foto_capa_url: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+        logo_url: ''
     });
-
-    // Produtos Demo (Se não houver banco conectado)
-    const [produtos] = useState([
-        { id: 1, nome: 'Dogão Tradicional', preco: 15.90, categoria: 'Cachorros', descricao: 'Salsicha, purê, batata palha, milho, ervilha.', imagem_url: 'https://images.unsplash.com/photo-1594212720993-8ad57b54abfb?auto=format&fit=crop&w=400&q=80', is_destaque: true },
-        { id: 2, nome: 'Batata Frita com Cheddar', preco: 25.00, categoria: 'Porções', descricao: 'Batata frita sequinha com cheddar e bacon.', imagem_url: 'https://images.unsplash.com/photo-1576107240321-93c66041ec64?auto=format&fit=crop&w=400&q=80', is_destaque: true },
-        { id: 3, nome: 'Refrigerante Lata', preco: 6.00, categoria: 'Bebidas', descricao: 'Coca-cola, Guaraná, Fanta.', imagem_url: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=400&q=80', is_destaque: false }
+    
+    const [produtos, setProdutos] = useState([
+        { id: '1', nome: 'Dog Simples', preco: 15.00, descricao: 'Pão, salsicha, batata palha, purê.', categoria_id: 'c1', ativo: true, is_destaque: true, imagem_url: 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?w=400' },
+        { id: '2', nome: 'Dog Duplo', preco: 22.00, descricao: 'Pão, 2 salsichas, muito queijo e purê.', categoria_id: 'c1', ativo: true, is_destaque: true, imagem_url: 'https://images.unsplash.com/photo-1594212691516-7489569ce54b?w=400' },
+        { id: '3', nome: 'Batata Frita', preco: 25.00, descricao: 'Porção inteira de batata frita rústica.', categoria_id: 'c2', ativo: true, is_destaque: false, imagem_url: 'https://images.unsplash.com/photo-1576107232684-1279f390859f?w=400' },
+        { id: '4', nome: 'Coca-Cola Lata', preco: 6.00, descricao: '350ml gelada.', categoria_id: 'c3', ativo: true, is_destaque: false, imagem_url: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400' }
     ]);
 
-    // Estados do Checkout e Mapa
-    const [checkoutForm, setCheckoutForm] = useState({ tipo: 'entrega', cep: '', endereco: '', referencia: '', pagamento: 'cartao', troco: '' });
-    const [mapaValidado, setMapaValidado] = useState(false);
+    const [categorias, setCategorias] = useState([
+        { id: 'c1', nome: 'Cachorros', ordem: 1 },
+        { id: 'c2', nome: 'Porções', ordem: 2 },
+        { id: 'c3', nome: 'Bebidas', ordem: 3 },
+        { id: 'c4', nome: 'Combos', ordem: 4 }
+    ]);
+
+    const [pedidosAdmin, setPedidosAdmin] = useState([]);
     
-    // Estados do Admin
-    const [adminTempTempo, setAdminTempTempo] = useState(restaurante.tempo_entrega);
-    const [adminTempRaio, setAdminTempRaio] = useState(restaurante.raio_entrega);
+    const [clienteAuth, setClienteAuth] = useState(false);
+    const [clienteDados, setClienteDados] = useState({ nome: '', celular: '' });
+    const [meusPedidos, setMeusPedidos] = useState([]);
+    
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [adminView, setAdminView] = useState('pedidos');
+    const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+    const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
+    const [produtoEditando, setProdutoEditando] = useState(null);
 
-    useEffect(() => {
-        // Carregar Tailwind CSS dinamicamente (Garante que o layout não quebre em nenhum ambiente)
-        if (!document.getElementById('tailwind-cdn')) {
-            const tw = document.createElement('script');
-            tw.id = 'tailwind-cdn';
-            tw.src = 'https://cdn.tailwindcss.com';
-            document.head.appendChild(tw);
-        }
+    const [checkoutForm, setCheckoutForm] = useState({ tipo: 'entrega', endereco: '', pagamento: 'Cartão', troco: '', referencia: '' });
+    const [mapaAberto, setMapaAberto] = useState(false);
+    const mapRef = useRef(null);
+    const [redirectPosLogin, setRedirectPosLogin] = useState(null);
 
-        // Carregar ícones dinamicamente para garantir funcionamento
-        if (!document.getElementById('font-awesome')) {
-            const fa = document.createElement('link');
-            fa.id = 'font-awesome';
-            fa.rel = 'stylesheet';
-            fa.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-            document.head.appendChild(fa);
-        }
-    }, []);
+    const carregarPedidosAdminLocal = () => {
+        const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
+        setPedidosAdmin(pedSalvos);
+    };
 
     const fazerPedidoAgora = () => {
         if (!clienteAuth) {
@@ -65,125 +58,517 @@ export default function App() {
         }
     };
 
-    const salvarPerfil = async () => {
-        if (!perfilNome || !perfilCelular) {
-            setPerfilMsg({ text: 'Preencha nome e celular.', type: 'error' });
-            return;
-        }
-        
-        setPerfilMsg({ text: 'Autenticando...', type: 'loading' });
-        
-        try {
-            // Simulated API Call
-            await new Promise(resolve => setTimeout(resolve, 800));
-            
-            localStorage.setItem('cliente_nome', perfilNome);
-            localStorage.setItem('cliente_celular', perfilCelular);
-            setClienteAuth(true);
-            setPerfilMsg({ text: 'Tudo pronto!', type: 'success' });
-            
-            setTimeout(() => {
-                setView(redirectPosLogin || 'cardapio');
-                setRedirectPosLogin(null);
-                setPerfilMsg({ text: '', type: '' });
-            }, 800);
-        } catch (e) {
-            setPerfilMsg({ text: 'Erro ao autenticar.', type: 'error' });
-        }
-    };
-
     const adicionarAoCarrinho = (produto) => {
-        const existente = carrinho.find(item => item.id === produto.id);
-        if (existente) {
-            setCarrinho(carrinho.map(item => item.id === produto.id ? { ...item, quantidade: item.quantidade + 1 } : item));
+        const carrinhoAtual = [...carrinho];
+        const index = carrinhoAtual.findIndex(item => item.id === produto.id);
+        if (index > -1) {
+            carrinhoAtual[index].quantidade += 1;
         } else {
-            setCarrinho([...carrinho, { ...produto, quantidade: 1, observacao: '' }]);
+            carrinhoAtual.push({ ...produto, quantidade: 1, observacao: '' });
         }
+        setCarrinho(carrinhoAtual);
     };
 
     const alterarQuantidade = (id, delta) => {
-        setCarrinho(carrinho.map(item => {
-            if (item.id === id) return { ...item, quantidade: Math.max(0, item.quantidade + delta) };
-            return item;
-        }).filter(item => item.quantidade > 0));
+        const carrinhoAtual = [...carrinho];
+        const index = carrinhoAtual.findIndex(item => item.id === id);
+        if (index > -1) {
+            carrinhoAtual[index].quantidade += delta;
+            if (carrinhoAtual[index].quantidade <= 0) {
+                carrinhoAtual.splice(index, 1);
+            }
+            setCarrinho(carrinhoAtual);
+        }
     };
 
-    const salvarTempoDelivery = () => {
-        setRestaurante(prev => ({ ...prev, tempo_entrega: adminTempTempo }));
-        alert('Tempo de entrega atualizado!');
+    const atualizarObs = (id, obs) => {
+        const carrinhoAtual = [...carrinho];
+        const index = carrinhoAtual.findIndex(item => item.id === id);
+        if (index > -1) {
+            carrinhoAtual[index].observacao = obs;
+            setCarrinho(carrinhoAtual);
+        }
     };
 
-    const salvarRaioEntrega = () => {
-        setRestaurante(prev => ({ ...prev, raio_entrega: adminTempRaio }));
-        alert('Raio de entrega atualizado!');
+    const salvarPerfil = () => {
+        if (!clienteDados.nome || !clienteDados.celular) {
+            alert('Preencha nome e celular.');
+            return;
+        }
+        localStorage.setItem('cliente_nome', clienteDados.nome);
+        localStorage.setItem('cliente_celular', clienteDados.celular);
+        setClienteAuth(true);
+        carregarMeusPedidos(clienteDados.celular);
+        
+        if (redirectPosLogin) {
+            setView(redirectPosLogin);
+            setRedirectPosLogin(null);
+        } else {
+            setView('home');
+        }
+    };
+
+    useEffect(() => {
+        if (!document.getElementById('tailwind-cdn')) {
+            const script = document.createElement('script');
+            script.id = 'tailwind-cdn';
+            script.src = 'https://cdn.tailwindcss.com';
+            document.head.appendChild(script);
+            
+            const fa = document.createElement('link');
+            fa.rel = 'stylesheet';
+            fa.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+            document.head.appendChild(fa);
+            
+            const leafletCss = document.createElement('link');
+            leafletCss.rel = 'stylesheet';
+            leafletCss.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(leafletCss);
+
+            const leafletJs = document.createElement('script');
+            leafletJs.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            document.head.appendChild(leafletJs);
+        }
+
+        const nome = localStorage.getItem('cliente_nome');
+        const cel = localStorage.getItem('cliente_celular');
+        if (nome && cel) {
+            setClienteAuth(true);
+            setClienteDados({ nome, celular: cel });
+            carregarMeusPedidos(cel);
+        }
+        
+        if (localStorage.getItem('isAdminBypass') === 'true') {
+            setIsAdmin(true);
+            carregarPedidosAdminLocal();
+        }
+    }, []);
+
+    const carregarMeusPedidos = (celular) => {
+        const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
+        setMeusPedidos(pedSalvos.filter(p => p.cliente_celular === celular));
+    };
+
+    const loginAdminForm = (e) => {
+        e.preventDefault();
+        const email = e.target.email.value;
+        const senha = e.target.senha.value;
+        
+        if(email === 'dogsdomirso.ls@outlook.com' && senha === 'K1nder$202525') {
+            localStorage.setItem('isAdminBypass', 'true');
+            setIsAdmin(true);
+            carregarPedidosAdminLocal();
+        } else {
+            alert("Credenciais Inválidas");
+        }
+    };
+
+    const sairAdmin = () => {
+        localStorage.removeItem('isAdminBypass');
+        setIsAdmin(false);
+        setView('home');
     };
 
     const toggleStatusLoja = () => {
-        setRestaurante(prev => ({ ...prev, is_aberto: !prev.is_aberto }));
+        setRestaurante({ ...restaurante, is_aberto: !restaurante.is_aberto });
+    };
+
+    useEffect(() => {
+        if (view === 'carrinho' && checkoutForm.tipo === 'entrega' && !mapRef.current && window.L) {
+            setTimeout(() => {
+                try {
+                    const lojaLat = -23.5329;
+                    const lojaLng = -46.7920;
+                    const raioMeters = (restaurante.raio_entrega || 5) * 1000;
+
+                    const map = window.L.map('mapa-raio-container', { zoomControl: false, attributionControl: false }).setView([lojaLat, lojaLng], 13);
+                    window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+                    window.L.circle([lojaLat, lojaLng], { color: '#d79e51', fillColor: '#d79e51', fillOpacity: 0.2, radius: raioMeters }).addTo(map);
+                    window.L.marker([lojaLat, lojaLng]).addTo(map);
+                    mapRef.current = map;
+                    setMapaAberto(true);
+                } catch (e) { console.log("Erro ao carregar mapa", e); }
+            }, 500);
+        } else if ((view !== 'carrinho' || checkoutForm.tipo !== 'entrega') && mapRef.current) {
+            mapRef.current.remove();
+            mapRef.current = null;
+            setMapaAberto(false);
+        }
+    }, [view, checkoutForm.tipo]);
+
+    const finalizarPedido = () => {
+        if (!restaurante.is_aberto) {
+            alert("A loja está fechada no momento.");
+            return;
+        }
+        if (checkoutForm.tipo === 'entrega' && !checkoutForm.endereco) {
+            alert("Preencha o endereço de entrega.");
+            return;
+        }
+
+        const novoPedido = {
+            id: Math.random().toString(36).substring(2, 9),
+            cliente_nome: clienteDados.nome,
+            cliente_celular: clienteDados.celular,
+            total: carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0),
+            status: 'novo',
+            itens: JSON.stringify({
+                lanches: carrinho,
+                endereco: checkoutForm.endereco,
+                referencia: checkoutForm.referencia,
+                pagamento: checkoutForm.pagamento,
+                troco: checkoutForm.troco
+            }),
+            created_at: new Date().toISOString()
+        };
+
+        const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
+        pedSalvos.push(novoPedido);
+        localStorage.setItem('pedidos_mock', JSON.stringify(pedSalvos));
+        
+        setCarrinho([]);
+        carregarMeusPedidos(clienteDados.celular);
+        setView('pedidos');
+        alert("Pedido enviado com sucesso!");
+    };
+
+    const moverPedidoStatus = (id, novoStatus) => {
+        const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
+        const atualizados = pedSalvos.map(p => p.id === id ? { ...p, status: novoStatus } : p);
+        localStorage.setItem('pedidos_mock', JSON.stringify(atualizados));
+        setPedidosAdmin(atualizados);
+    };
+
+    const imprimirNota = (pedido) => {
+        const info = JSON.parse(pedido.itens || '{}');
+        const lanchesHtml = info.lanches ? info.lanches.map(l => 
+            `${l.quantidade}x ${l.nome} ${l.observacao ? `(Obs: ${l.observacao})` : ''} - R$ ${(l.quantidade * l.preco).toFixed(2).replace('.',',')}`
+        ).join('<br/>') : '';
+
+        const d = new Date(pedido.created_at);
+        const dataFormat = d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR');
+
+        const win = window.open('', '_blank', 'width=350,height=600');
+        win.document.write(`
+            <html><head><style>body{font-family:monospace; margin:10px;} hr{border-top:1px dashed #000;}</style></head>
+            <body>
+                <h3 style="text-align:center; margin-bottom:5px;">${restaurante.nome}</h3>
+                <h4 style="text-align:center; margin-top:0;">PEDIDO #${pedido.id.toUpperCase()}</h4>
+                <div style="text-align:center; font-size:12px;">${dataFormat}</div>
+                <hr/>
+                <div>Cliente: ${pedido.cliente_nome}</div>
+                <div>Tel: ${pedido.cliente_celular}</div>
+                <hr/>
+                <div><b>ITENS:</b><br/>${lanchesHtml}</div>
+                <hr/>
+                <div>Total: R$ ${Number(pedido.total).toFixed(2).replace('.',',')}</div>
+                <hr/>
+                <div>Endereço: ${info.endereco || 'Retirada'}</div>
+                ${info.referencia ? `<div>Ref: ${info.referencia}</div>` : ''}
+                <div>Pagamento: ${info.pagamento} ${info.troco ? '(Troco: '+info.troco+')' : ''}</div>
+                <hr/>
+                <div style="text-align:center; font-size:12px; margin-top:10px;">Obrigado pela preferência!</div>
+                <script>window.print(); window.close();</script>
+            </body></html>
+        `);
+        win.document.close();
     };
 
     const totalCarrinho = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const badgeCount = carrinho.reduce((sum, item) => sum + item.quantidade, 0);
 
-    return (
-        <div className="min-h-screen bg-[#1a191c] md:bg-gray-900 md:bg-[url('https://images.unsplash.com/photo-1541214113241-21578d2d9b62?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')] bg-blend-overlay bg-cover bg-center bg-fixed flex justify-center items-start">
-            
-            {/* CONTAINER MOBILE CENTRALIZADO NO DESKTOP */}
-            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col font-sans text-white shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-x-hidden">
+    if (isAdmin) {
+        return (
+            <div className="fixed inset-0 bg-[#1a191c] flex w-full h-full text-white font-sans overflow-hidden z-50">
+                <div className={`absolute md:relative z-[60] w-64 bg-[#242326] border-r border-gray-800 flex flex-col h-full transform ${adminMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 flex-shrink-0`}>
+                    <div className="p-5 flex items-center justify-between border-b border-gray-800">
+                        <h2 className="font-bold text-xl text-[#d79e51] uppercase tracking-wider">Gestão</h2>
+                        <button onClick={() => setAdminMenuOpen(false)} className="md:hidden text-gray-400 hover:text-white transition-colors">
+                            <i className="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    <nav className="flex-1 overflow-y-auto py-4">
+                        <ul className="space-y-2 px-3">
+                            <li>
+                                <button onClick={() => setAdminView('cardapio')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'cardapio' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
+                                    <i className={`fas fa-book-open w-6 ${adminView === 'cardapio' ? 'text-[#d79e51]' : ''}`}></i>
+                                    <span className="text-sm font-medium">Cardápio</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button onClick={() => setAdminView('pedidos')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'pedidos' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
+                                    <i className={`fas fa-receipt w-6 ${adminView === 'pedidos' ? 'text-[#d79e51]' : ''}`}></i>
+                                    <span className="text-sm font-medium">Pedidos</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button onClick={() => setAdminView('configs')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'configs' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
+                                    <i className={`fas fa-cog w-6 ${adminView === 'configs' ? 'text-[#d79e51]' : ''}`}></i>
+                                    <span className="text-sm font-medium">Configurações</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                    <div className="p-4 border-t border-gray-800 space-y-3">
+                        <button onClick={sairAdmin} className="w-full flex items-center justify-center px-4 py-2 text-sm text-red-400 hover:bg-red-400/10 border border-transparent hover:border-red-400/30 rounded-lg transition-all">
+                            <i className="fas fa-sign-out-alt mr-2"></i> Voltar ao App
+                        </button>
+                    </div>
+                </div>
+
+                {adminMenuOpen && <div onClick={() => setAdminMenuOpen(false)} className="fixed inset-0 bg-black/60 z-[55] md:hidden backdrop-blur-sm transition-opacity"></div>}
+
+                <div className="flex-1 flex flex-col overflow-hidden relative bg-[#1a191c] w-full">
+                    <header className="bg-[#1f1e22] border-b border-gray-800 p-4 flex justify-between items-center z-10 flex-shrink-0">
+                        <div className="flex items-center">
+                            <button onClick={() => setAdminMenuOpen(true)} className="md:hidden text-gray-400 hover:text-white mr-4 transition-colors">
+                                <i className="fas fa-bars text-xl"></i>
+                            </button>
+                            <h3 className="text-white text-lg font-medium">
+                                {adminView === 'pedidos' ? 'Gestão de Pedidos' : adminView === 'cardapio' ? 'Cardápio Web' : 'Configurações do App'}
+                            </h3>
+                        </div>
+                        {adminView === 'cardapio' && (
+                            <div className="flex items-center space-x-4">
+                                <button onClick={() => {setProdutoEditando(null); setModalProdutoAberto(true);}} className="bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] px-3 md:px-4 py-1.5 md:py-2 rounded-lg font-bold text-[11px] md:text-sm shadow-md transition-colors flex items-center">
+                                    <i className="fas fa-plus md:mr-2"></i> <span className="hidden md:inline">Novo Lanche</span>
+                                </button>
+                            </div>
+                        )}
+                    </header>
+
+                    <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
+                        {adminView === 'pedidos' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 lg:gap-6 h-full items-start">
+                                {['novo', 'preparo', 'pronto', 'finalizado'].map(status => (
+                                    <div key={status} className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col max-h-[80vh] shadow-sm">
+                                        <div className="p-3.5 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center sticky top-0 z-10">
+                                            <h4 className="text-white font-medium tracking-wide uppercase text-sm">{status === 'novo' ? 'Novos Pedidos' : status === 'preparo' ? 'Em Preparo' : status === 'pronto' ? 'Prontos / Entrega' : 'Finalizados'}</h4>
+                                        </div>
+                                        <div className="p-3 overflow-y-auto space-y-3 hide-scrollbar flex-1 min-h-[150px]">
+                                            {pedidosAdmin.filter(p => p.status === status || (status === 'finalizado' && p.status === 'rejeitado')).map(p => {
+                                                const info = JSON.parse(p.itens || '{}');
+                                                return (
+                                                    <div key={p.id} className="bg-[#363539] p-3 rounded-lg border border-gray-700 shadow-sm">
+                                                        <div className="flex justify-between border-b border-gray-700 pb-2 mb-2">
+                                                            <span className="text-white font-bold text-sm">#{p.id.substring(0,6).toUpperCase()} - {p.cliente_nome}</span>
+                                                            <span className="text-[#d79e51] font-bold text-sm">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
+                                                        </div>
+                                                        <div className="mb-2 text-xs text-gray-300">
+                                                            {info.lanches?.map((l, i) => <div key={i}>• {l.quantidade}x {l.nome} {l.observacao && <span className="text-red-400">({l.observacao})</span>}</div>)}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-400 bg-[#1f1e22] p-1.5 rounded mt-2">
+                                                            <i className="fas fa-map-marker-alt"></i> {info.endereco || 'Retirada'} <br/>
+                                                            {info.referencia && <><i className="fas fa-directions mt-1"></i> Ref: {info.referencia}<br/></>}
+                                                            <i className="fas fa-wallet mt-1"></i> {info.pagamento || 'N/A'} {info.troco ? `(Troco: ${info.troco})` : ''}
+                                                        </div>
+                                                        <div className="mt-3 flex flex-col space-y-2">
+                                                            {status === 'novo' && (
+                                                                <div className="flex space-x-2">
+                                                                    <button onClick={() => moverPedidoStatus(p.id, 'preparo')} className="flex-1 bg-[#d79e51] text-[#1a191c] font-bold py-1.5 rounded text-xs">Aceitar</button>
+                                                                    <button onClick={() => moverPedidoStatus(p.id, 'rejeitado')} className="flex-1 bg-red-900/50 text-red-300 border border-red-700/50 font-bold py-1.5 rounded text-xs">Rejeitar</button>
+                                                                </div>
+                                                            )}
+                                                            {status === 'preparo' && <button onClick={() => moverPedidoStatus(p.id, 'pronto')} className="w-full bg-green-500 text-white font-bold py-1.5 rounded text-xs">Pronto / Entrega</button>}
+                                                            {status === 'pronto' && <button onClick={() => moverPedidoStatus(p.id, 'finalizado')} className="w-full bg-gray-600 text-white font-bold py-1.5 rounded text-xs">Concluir / Arquivar</button>}
+                                                            {(status === 'finalizado' || p.status === 'rejeitado') && <span className="w-full block text-center text-gray-500 font-bold py-1.5 rounded text-xs border border-gray-700">{p.status === 'rejeitado' ? 'Pedido Rejeitado' : 'Finalizado'}</span>}
+                                                            
+                                                            <button onClick={() => imprimirNota(p)} className="w-full bg-transparent border border-gray-600 text-gray-400 hover:text-white py-1.5 rounded text-xs"><i className="fas fa-print mr-1"></i> Imprimir Nota</button>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                            {pedidosAdmin.filter(p => p.status === status || (status === 'finalizado' && p.status === 'rejeitado')).length === 0 && (
+                                                <div className="text-gray-500 text-center text-sm mt-4">Vazio</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {adminView === 'cardapio' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
+                                {produtos.map(p => {
+                                    const cName = categorias.find(c => c.id === p.categoria_id)?.nome || 'Sem Categoria';
+                                    return (
+                                    <div key={p.id} className="bg-[#1f1e22] border border-gray-800 rounded-xl overflow-hidden shadow-md">
+                                        <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className={`w-full h-28 object-cover ${!p.ativo ? 'grayscale opacity-50' : ''}`} />
+                                        <div className="p-4">
+                                            <p className="text-[9px] text-gray-400 uppercase tracking-widest">{cName}</p>
+                                            <h4 className="text-white font-medium text-sm my-1">{p.nome}</h4>
+                                            <p className="text-[#d79e51] font-bold mb-3">R$ {Number(p.preco).toFixed(2).replace('.',',')}</p>
+                                            <div className="flex justify-between items-center">
+                                                <span className={`text-xs px-2 py-1 rounded border ${p.ativo ? 'border-green-800 text-green-500' : 'border-red-800 text-red-500'}`}>{p.ativo ? 'Ativo' : 'Pausado'}</span>
+                                                <button onClick={() => {setProdutoEditando(p); setModalProdutoAberto(true);}} className="text-xs px-3 py-1.5 bg-[#d79e51] text-[#1a191c] rounded"><i className="fas fa-pen"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )})}
+                            </div>
+                        )}
+
+                        {adminView === 'configs' && (
+                            <div className="max-w-3xl mx-auto space-y-6 pt-2">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                        <h4 className="text-white font-medium tracking-wide uppercase text-sm">Operação da Loja</h4>
+                                    </div>
+                                    <div className="p-5 space-y-5">
+                                        <div className="flex justify-between items-center border-b border-gray-800 pb-5">
+                                            <div>
+                                                <p className="text-white font-medium text-sm">Status do Restaurante</p>
+                                                <p className="text-xs text-gray-400 mt-1">Abra ou feche para receber pedidos.</p>
+                                            </div>
+                                            <label className="flex items-center cursor-pointer group">
+                                                <div className="relative">
+                                                    <input type="checkbox" checked={restaurante.is_aberto} onChange={toggleStatusLoja} className="sr-only" />
+                                                    <div className={`block w-10 h-6 rounded-full transition-colors duration-300 shadow-inner ${restaurante.is_aberto ? 'bg-green-500' : 'bg-gray-700'}`}></div>
+                                                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 shadow-md ${restaurante.is_aberto ? 'translate-x-4' : ''}`}></div>
+                                                </div>
+                                                <span className={`ml-3 text-xs font-bold uppercase tracking-wide ${restaurante.is_aberto ? 'text-green-400' : 'text-red-400'}`}>{restaurante.is_aberto ? 'Aberto' : 'Fechado'}</span>
+                                            </label>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Tempo Delivery (Ex: 30-45 min)</label>
+                                                <input type="text" value={restaurante.tempo_entrega} onChange={(e) => setRestaurante({...restaurante, tempo_entrega: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Raio Máximo (KM)</label>
+                                                <input type="number" value={restaurante.raio_entrega} onChange={(e) => setRestaurante({...restaurante, raio_entrega: Number(e.target.value)})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col shadow-sm mt-6">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                        <h4 className="text-white font-medium tracking-wide uppercase text-sm">Design do Aplicativo</h4>
+                                    </div>
+                                    <div className="p-5">
+                                        <p className="text-gray-400 text-sm mb-5">Personalize a aparência visual do seu cardápio digital.</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <button className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-700 rounded-xl hover:border-[#d79e51] hover:bg-[#d79e51]/5 transition-all group">
+                                                <i className="fas fa-image text-3xl text-gray-500 group-hover:text-[#d79e51] mb-3 transition-colors"></i>
+                                                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Trocar Foto de Capa</span>
+                                            </button>
+                                            
+                                            <button className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-700 rounded-xl hover:border-[#d79e51] hover:bg-[#d79e51]/5 transition-all group">
+                                                <i className="fas fa-bullseye text-3xl text-gray-500 group-hover:text-[#d79e51] mb-3 transition-colors"></i>
+                                                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Trocar Logo</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
                 
-                {/* Header Fixo */}
+                {modalProdutoAberto && (
+                    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
+                            <div className="p-4 md:p-5 border-b border-gray-800 flex justify-between items-center flex-shrink-0">
+                                <h3 className="text-white text-lg font-bold">{produtoEditando ? 'Editar Produto' : 'Novo Produto'}</h3>
+                                <button onClick={() => setModalProdutoAberto(false)} className="text-gray-400 hover:text-[#d79e51] transition-colors"><i className="fas fa-times text-xl"></i></button>
+                            </div>
+                            <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-4">
+                                <div>
+                                    <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Nome do Item *</label>
+                                    <input type="text" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.nome}/>
+                                </div>
+                                <div className="flex space-x-3">
+                                    <div className="flex-1">
+                                        <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Preço (R$) *</label>
+                                        <input type="number" step="0.01" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.preco}/>
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Categoria *</label>
+                                        <select className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.categoria_id}>
+                                            {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Descrição</label>
+                                    <textarea rows="2" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" defaultValue={produtoEditando?.descricao}></textarea>
+                                </div>
+                                <div className="flex items-center space-x-6 pt-3 border-t border-gray-800">
+                                    <label className="flex items-center space-x-2 cursor-pointer group">
+                                        <input type="checkbox" className="sr-only peer" defaultChecked={produtoEditando ? produtoEditando.ativo : true}/>
+                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#d79e51] relative"><div className="w-5 h-5 bg-gray-300 rounded-full absolute left-0 transition-all peer-checked:translate-x-4"></div></div>
+                                        <span className="text-xs text-gray-300">Em Estoque</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2 cursor-pointer group">
+                                        <input type="checkbox" className="sr-only peer" defaultChecked={produtoEditando?.is_destaque}/>
+                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#d79e51] relative"><div className="w-5 h-5 bg-gray-300 rounded-full absolute left-0 transition-all peer-checked:translate-x-4"></div></div>
+                                        <span className="text-xs text-gray-300">Destaque</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="p-4 border-t border-gray-800 flex justify-end space-x-3 bg-[#1f1e22] rounded-b-xl">
+                                <button onClick={() => setModalProdutoAberto(false)} className="px-4 py-2 rounded-lg font-bold text-xs text-gray-400 border border-gray-600 hover:text-white">Cancelar</button>
+                                <button onClick={() => setModalProdutoAberto(false)} className="px-5 py-2 bg-[#d79e51] text-[#1a191c] rounded-lg font-bold text-xs">Salvar</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-[#1a191c] lg:bg-gray-900 lg:bg-[url('https://images.unsplash.com/photo-1541214113241-21578d2d9b62?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')] bg-blend-overlay bg-cover bg-center bg-fixed flex justify-center items-start text-white font-sans">
+            <div className={`w-full ${view === 'home' || view === 'perfil' ? 'max-w-md' : 'max-w-5xl lg:max-w-6xl lg:mt-8 lg:rounded-2xl lg:mb-8'} min-h-screen lg:min-h-0 bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300`}>
+                
                 <div className="bg-[#1a191c] flex justify-center items-center py-2.5 border-b border-gray-800 text-xs shadow-md z-20">
                     <span className="text-gray-300 flex items-center">
-                        <i className="fas fa-motorcycle text-[#d79e51] mr-2"></i>
-                        Delivery: {restaurante.tempo_entrega}
+                        <i className="fas fa-motorcycle text-[#d79e51] mr-2"></i> Delivery: {restaurante.tempo_entrega}
                     </span>
                     <span className="mx-3 text-gray-600">|</span>
-                    <span className={restaurante.is_aberto ? "text-[#d79e51] font-medium" : "text-red-500 font-medium"}>
+                    <span className={`font-medium ${restaurante.is_aberto ? 'text-[#d79e51]' : 'text-red-500'}`}>
                         {restaurante.is_aberto ? 'Aberto' : 'Fechado'}
                     </span>
                 </div>
 
-                {/* Conteúdo Rolável Principal */}
-                <div className="flex-1 pb-24 overflow-y-auto">
+                <div className={`flex-1 overflow-y-auto pb-24 ${view === 'home' || view === 'perfil' ? '' : 'px-4 lg:px-8'}`}>
                     
-                    {}
-                    {/* --- HOME VIEW --- */}
                     {view === 'home' && (
                         <div>
-                            {/* Capa e Logo */}
                             <div className="relative flex flex-col items-center mb-6">
-                                <div className="w-full h-40 relative bg-gray-900 overflow-hidden">
+                                <div className="w-full h-48 relative bg-gray-900 overflow-hidden">
                                     <img src={restaurante.foto_capa_url} alt="Capa" className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80"></div>
                                 </div>
-                                <div className="w-32 h-32 rounded-full border-4 border-[#d79e51] flex items-center justify-center -mt-16 z-10 bg-[#1f1e22] shadow-xl overflow-hidden relative">
-                                    <h1 className="font-bold text-xl tracking-wider text-white text-center leading-none z-10">DOGS DO<br/>MIRSO</h1>
+                                <div className="w-32 h-32 rounded-full border-4 border-[#d79e51] flex flex-col items-center justify-center -mt-16 z-10 bg-[#1f1e22] shadow-xl overflow-hidden relative">
+                                    <h1 className="font-bold text-xl tracking-wider text-white text-center leading-none z-10 px-2">{restaurante.nome}</h1>
                                 </div>
                                 <div className="text-center mt-4 w-full px-4">
-                                    <h2 className="font-bold text-white text-lg tracking-wider">{restaurante.nome}</h2>
-                                    <p className="text-[#d79e51] text-[10px] tracking-[0.35em] mt-1 uppercase">Cardápio Digital</p>
+                                    <h2 className="font-bold text-white text-xl tracking-wider">{restaurante.nome}</h2>
+                                    <p className="text-[#d79e51] text-xs tracking-[0.35em] mt-1 uppercase">Cardápio Digital</p>
                                 </div>
                                 <div className="w-full px-6 mt-6">
-                                    <button onClick={fazerPedidoAgora} className="w-full bg-gradient-to-r from-[#d79e51] to-[#e8b776] text-[#2b2a2d] font-bold text-xl py-4 rounded-xl shadow-[0_6px_20px_rgba(215,158,81,0.25)] active:scale-95 transition-transform flex items-center justify-center space-x-2">
-                                        <span>FAZER PEDIDO AGORA</span>
+                                    <button onClick={fazerPedidoAgora} className="w-full bg-gradient-to-r from-[#d79e51] to-[#e8b776] text-[#2b2a2d] font-bold text-xl py-4 rounded-xl shadow-[0_6px_20px_rgba(215,158,81,0.25)] active:scale-95 transition-transform">
+                                        FAZER PEDIDO AGORA
                                     </button>
                                 </div>
                             </div>
-
-                            {/* Categorias */}
-                            <div className="mt-8 px-2 pb-6">
-                                <div className="flex justify-between overflow-x-auto px-4 pb-4 pt-2 space-x-5">
-                                    {[
-                                        { nome: 'Cachorros', icone: 'fa-hotdog' },
-                                        { nome: 'Porções', icone: 'fa-utensils' },
-                                        { nome: 'Bebidas', icone: 'fa-glass-water' },
-                                        { nome: 'Combos', icone: 'fa-box-open' }
-                                    ].map(cat => (
-                                        <div key={cat.nome} onClick={() => setView('cardapio')} className="flex flex-col items-center space-y-3 cursor-pointer flex-shrink-0 group">
-                                            <div className="w-[70px] h-[70px] rounded-full bg-[#363539] border border-gray-700 flex items-center justify-center shadow-lg group-active:scale-95 transition-transform">
-                                                <i className={`fas ${cat.icone} text-2xl text-[#d79e51] opacity-90`}></i>
+                            
+                            <div className="px-6 mt-8">
+                                <h3 className="font-medium text-lg text-white mb-3 uppercase tracking-wider">Destaques</h3>
+                                <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
+                                    {produtos.filter(p => p.is_destaque).map(p => (
+                                        <div key={p.id} className="w-[80vw] max-w-[280px] bg-[#363539] rounded-2xl overflow-hidden shadow-lg flex-none border border-gray-700/50 snap-start">
+                                            <div className="h-40 relative">
+                                                <img src={p.imagem_url} alt={p.nome} className="w-full h-full object-cover" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
                                             </div>
-                                            <span className="text-gray-400 text-xs font-medium">{cat.nome}</span>
+                                            <div className="p-4 relative bg-gradient-to-b from-[#363539] to-[#2c2b2e]">
+                                                <h4 className="font-medium text-lg text-white uppercase truncate">{p.nome}</h4>
+                                                <p className="text-[#d79e51] font-bold text-xl mt-1">R$ {p.preco.toFixed(2).replace('.',',')}</p>
+                                                <button onClick={() => adicionarAoCarrinho(p)} className="absolute bottom-4 right-4 w-9 h-9 border border-[#d79e51]/50 rounded-full flex items-center justify-center text-[#d79e51] hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors"><i className="fas fa-plus"></i></button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -191,61 +576,74 @@ export default function App() {
                         </div>
                     )}
 
-                    {}
-                    {/* --- CARDÁPIO VIEW --- */}
                     {view === 'cardapio' && (
-                        <div className="px-6 pt-6 pb-20">
+                        <div className="pt-6">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Nosso Cardápio</h2>
                             </div>
-                            <div className="space-y-6">
-                                {produtos.map(p => (
-                                    <div key={p.id} className="bg-[#363539] rounded-2xl p-3 flex shadow border border-gray-700/50">
-                                        <img src={p.imagem_url} alt={p.nome} className="w-24 h-24 rounded-xl object-cover flex-shrink-0" />
-                                        <div className="ml-3 flex flex-col justify-between flex-grow">
-                                            <div>
-                                                <h4 className="text-white text-lg font-medium leading-tight">{p.nome}</h4>
-                                                <p className="text-gray-400 text-xs mt-1">{p.descricao}</p>
-                                            </div>
-                                            <div className="flex justify-between items-end mt-2">
-                                                <span className="text-[#d79e51] font-bold text-lg">R$ {p.preco.toFixed(2).replace('.', ',')}</span>
-                                                <button onClick={() => adicionarAoCarrinho(p)} className="w-9 h-9 border border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#2b2a2d] transition-colors">
-                                                    <i className="fas fa-plus"></i>
-                                                </button>
-                                            </div>
-                                        </div>
+                            
+                            <div className="flex overflow-x-auto gap-3 pb-4 mb-4 hide-scrollbar">
+                                {categorias.map(c => (
+                                    <div key={c.id} className="flex-none bg-[#363539] border border-gray-700 px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium text-gray-300 hover:text-[#d79e51] hover:border-[#d79e51] cursor-pointer transition-colors">
+                                        {c.nome}
                                     </div>
                                 ))}
+                            </div>
+
+                            <div className="space-y-8">
+                                {categorias.map(cat => {
+                                    const prods = produtos.filter(p => p.categoria_id === cat.id);
+                                    if(prods.length === 0) return null;
+                                    return (
+                                        <div key={cat.id}>
+                                            <h3 className="text-xl text-[#d79e51] mb-4 border-b border-gray-700/50 pb-2 uppercase">{cat.nome}</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {prods.map(p => (
+                                                    <div key={p.id} className="bg-[#363539] rounded-2xl p-3 flex shadow border border-gray-700/50 h-full hover:border-[#d79e51]/40 transition-colors">
+                                                        <img src={p.imagem_url} alt={p.nome} className="w-24 h-24 rounded-xl object-cover flex-shrink-0" />
+                                                        <div className="ml-3 flex flex-col justify-between flex-grow min-w-0">
+                                                            <div>
+                                                                <h4 className="text-white text-lg leading-tight truncate">{p.nome}</h4>
+                                                                <p className="text-gray-400 text-[11px] mt-1 line-clamp-2">{p.descricao}</p>
+                                                            </div>
+                                                            <div className="flex justify-between items-end mt-2">
+                                                                <span className="text-[#d79e51] font-bold text-lg">R$ {p.preco.toFixed(2).replace('.',',')}</span>
+                                                                <button onClick={() => adicionarAoCarrinho(p)} className="w-8 h-8 border border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors"><i className="fas fa-plus"></i></button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
                             </div>
                         </div>
                     )}
 
-                    {}
-                    {/* --- CARRINHO VIEW --- */}
                     {view === 'carrinho' && (
-                        <div className="px-6 pt-6 pb-20 flex flex-col min-h-[80vh]">
-                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
+                        <div className="pt-6">
+                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Seu Pedido</h2>
                             </div>
 
                             {carrinho.length === 0 ? (
-                                <div className="flex-1 flex flex-col items-center justify-center text-center mt-10">
-                                    <div className="w-24 h-24 rounded-full bg-gray-800 flex items-center justify-center mb-4">
-                                        <i className="fas fa-shopping-basket text-4xl text-gray-600"></i>
-                                    </div>
+                                <div className="flex flex-col items-center justify-center text-center mt-10">
+                                    <i className="fas fa-shopping-basket text-4xl text-gray-600 mb-4"></i>
                                     <h3 className="font-medium text-xl text-gray-300 mb-2">Seu carrinho está vazio</h3>
-                                    <p className="text-sm text-gray-500 mb-6">Bateu a fome? Escolha algo delicioso.</p>
-                                    <button onClick={() => setView('cardapio')} className="px-6 py-3 bg-transparent border border-[#d79e51] text-[#d79e51] rounded-xl font-bold uppercase">Ver Cardápio</button>
+                                    <button onClick={() => setView('cardapio')} className="mt-4 px-6 py-3 border border-[#d79e51] text-[#d79e51] rounded-xl font-bold uppercase hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors">Ver Cardápio</button>
                                 </div>
                             ) : (
-                                <div className="flex-1 flex flex-col">
-                                    <div className="flex-1 overflow-y-auto space-y-4 mb-6">
+                                <div className="flex flex-col lg:flex-row lg:gap-8 items-start">
+                                    <div className="w-full lg:w-1/2 space-y-4 mb-8 lg:mb-0">
+                                        <h3 className="text-[#d79e51] font-medium uppercase text-sm border-b border-gray-800 pb-2 mb-4">Resumo dos Itens</h3>
                                         {carrinho.map(item => (
                                             <div key={item.id} className="bg-[#363539] rounded-xl p-3 border border-gray-700">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <h4 className="font-medium text-white">{item.nome}</h4>
                                                     <span className="text-[#d79e51] font-bold">R$ {(item.preco * item.quantidade).toFixed(2).replace('.', ',')}</span>
                                                 </div>
+                                                <input type="text" placeholder="Observação (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.id, e.target.value)} className="w-full bg-[#1a191c] text-xs text-gray-300 border border-gray-700 rounded mb-3 px-2 py-1 outline-none focus:border-[#d79e51]" />
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-xs text-gray-400">R$ {item.preco.toFixed(2).replace('.', ',')} un</span>
                                                     <div className="flex items-center space-x-3 bg-[#1a191c] rounded-lg px-2 py-1">
@@ -258,180 +656,181 @@ export default function App() {
                                         ))}
                                     </div>
 
-                                    {/* Checkout Forms */}
-                                    <div className="space-y-6 mb-6">
-                                        <div>
-                                            <h4 className="text-[#d79e51] font-medium uppercase mb-3 text-sm flex items-center"><i className="fas fa-map-marker-alt mr-2"></i> 1. Entrega</h4>
-                                            <select value={checkoutForm.tipo} onChange={e => setCheckoutForm({...checkoutForm, tipo: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-3 mb-3 outline-none focus:border-[#d79e51] text-sm">
-                                                <option value="entrega">Entregar no meu endereço</option>
-                                                <option value="retirada">Retirar no estabelecimento</option>
-                                            </select>
-                                            {checkoutForm.tipo === 'entrega' && (
-                                                <textarea placeholder="Rua, Número, Bairro..." value={checkoutForm.endereco} onChange={e => setCheckoutForm({...checkoutForm, endereco: e.target.value})} rows="3" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm"></textarea>
-                                            )}
-                                        </div>
-                                    </div>
+                                    <div className="w-full lg:w-1/2 bg-[#242326] p-5 rounded-2xl border border-gray-800 shadow-lg">
+                                        <div className="space-y-6">
+                                            <div>
+                                                <h4 className="text-[#d79e51] font-medium uppercase mb-3 text-sm flex items-center"><i className="fas fa-map-marker-alt mr-2"></i> 1. Entrega</h4>
+                                                <select value={checkoutForm.tipo} onChange={e => setCheckoutForm({...checkoutForm, tipo: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-3 mb-3 outline-none focus:border-[#d79e51] text-sm">
+                                                    <option value="entrega">Entregar no meu endereço</option>
+                                                    <option value="retirada">Retirar no estabelecimento</option>
+                                                </select>
+                                                
+                                                {checkoutForm.tipo === 'entrega' && (
+                                                    <div className="space-y-3 animate-fade-in">
+                                                        <textarea placeholder="Rua, Número, Bairro..." value={checkoutForm.endereco} onChange={e => setCheckoutForm({...checkoutForm, endereco: e.target.value})} rows="2" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm"></textarea>
+                                                        <input type="text" placeholder="Ponto de Referência" value={checkoutForm.referencia} onChange={e => setCheckoutForm({...checkoutForm, referencia: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                                        
+                                                        <div className="relative w-full h-40 bg-[#1a191c] rounded-lg border border-gray-700 overflow-hidden">
+                                                            <div id="mapa-raio-container" className="absolute inset-0 w-full h-full z-0"></div>
+                                                            {!mapaAberto && <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-xs z-10"><i className="fas fa-spinner fa-spin mr-2"></i> Carregando Área...</div>}
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-400 text-center"><i className="fas fa-info-circle"></i> O círculo indica nossa área máxima de entrega ({restaurante.raio_entrega}km).</p>
+                                                    </div>
+                                                )}
+                                            </div>
 
-                                    <div className="border-t border-gray-700 pt-4 mb-4">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-white font-bold text-xl uppercase">Total</span>
-                                            <span className="text-[#d79e51] font-bold text-2xl">R$ {totalCarrinho.toFixed(2).replace('.', ',')}</span>
+                                            <div>
+                                                <h4 className="text-[#d79e51] font-medium uppercase mb-3 text-sm flex items-center"><i className="fas fa-wallet mr-2"></i> 2. Pagamento</h4>
+                                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                                    <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Cartão'})} className={`py-2 rounded-lg text-sm font-medium transition-all border ${checkoutForm.pagamento === 'Cartão' ? 'border-[#d79e51] bg-[#363539] text-white' : 'border-gray-700 bg-transparent text-gray-400'}`}>Cartão</button>
+                                                    <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Dinheiro'})} className={`py-2 rounded-lg text-sm font-medium transition-all border ${checkoutForm.pagamento === 'Dinheiro' ? 'border-[#d79e51] bg-[#363539] text-white' : 'border-gray-700 bg-transparent text-gray-400'}`}>Dinheiro</button>
+                                                </div>
+                                                {checkoutForm.pagamento === 'Dinheiro' && (
+                                                    <input type="text" placeholder="Troco para quanto?" value={checkoutForm.troco} onChange={e => setCheckoutForm({...checkoutForm, troco: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm animate-fade-in" />
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <button onClick={() => { alert('Pedido Enviado!'); setCarrinho([]); setView('pedidos'); }} className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-xl py-4 rounded-xl active:scale-95 transition-transform flex justify-center items-center">
-                                        <i className="fas fa-check-circle mr-2"></i> ENVIAR PEDIDO
-                                    </button>
+                                        <div className="border-t border-gray-700 pt-4 mt-6 mb-6">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-white font-bold text-xl uppercase">Total</span>
+                                                <span className="text-[#d79e51] font-bold text-2xl">R$ {totalCarrinho.toFixed(2).replace('.', ',')}</span>
+                                            </div>
+                                        </div>
+
+                                        <button onClick={finalizarPedido} className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-xl py-4 rounded-xl active:scale-95 transition-transform flex justify-center items-center shadow-lg">
+                                            <i className="fas fa-check-circle mr-2"></i> ENVIAR PEDIDO
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {}
-                    {/* --- PERFIL VIEW --- */}
-                    {view === 'perfil' && (
-                        <div className="px-6 pt-10 pb-20 flex flex-col items-center min-h-[70vh] justify-between">
-                            <div className="w-full flex flex-col items-center max-w-sm mx-auto">
-                                <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
-                                <p className="text-gray-400 text-sm text-center mb-8">
-                                    {clienteAuth ? 'Você está identificado. Boas compras!' : 'Para fazer pedidos, identifique-se abaixo.'}
-                                </p>
-                                
-                                {!clienteAuth ? (
-                                    <div className="w-full space-y-4">
-                                        <div>
-                                            <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Nome Completo</label>
-                                            <input type="text" value={perfilNome} onChange={(e) => setPerfilNome(e.target.value)} placeholder="Ex: João Silva" className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:border-[#d79e51] outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Celular</label>
-                                            <input type="tel" value={perfilCelular} onChange={(e) => setPerfilCelular(e.target.value)} placeholder="(11) 90000-0000" className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:border-[#d79e51] outline-none" />
-                                        </div>
-                                        <button onClick={salvarPerfil} className="w-full bg-gradient-to-r from-[#d79e51] to-[#e8b776] text-[#1a191c] font-bold text-xl py-3.5 rounded-xl active:scale-95 transition-all mt-4">ACESSAR</button>
-                                        {perfilMsg.text && (
-                                            <div className={`text-center text-sm mt-2 ${perfilMsg.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>{perfilMsg.text}</div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="w-full space-y-4 mt-4">
-                                        <div className="bg-[#1f1e22] border border-gray-700 rounded-xl p-4 shadow-sm">
-                                            <div className="mb-4 border-b border-gray-700 pb-4">
-                                                <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Nome Completo</span>
-                                                <span className="text-white text-lg font-medium">{perfilNome}</span>
-                                            </div>
-                                            <div>
-                                                <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Celular</span>
-                                                <span className="text-[#d79e51] text-lg">{perfilCelular}</span>
-                                            </div>
-                                        </div>
-                                        <button onClick={() => setClienteAuth(false)} className="w-full border border-gray-600 text-gray-300 hover:text-white font-bold text-lg py-3 rounded-xl active:scale-95 transition-all mt-4">SAIR / EDITAR DADOS</button>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="mt-8 pt-4 border-t border-gray-800 text-center w-full">
-                                <button onClick={() => setView('admin')} className="text-[10px] text-gray-600 uppercase hover:text-[#d79e51]">Área Restrita</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {}
-                    {/* --- PEDIDOS VIEW --- */}
                     {view === 'pedidos' && (
-                        <div className="px-6 pt-6 pb-20">
+                        <div className="pt-6">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Meus Pedidos</h2>
                             </div>
-                            <div className="text-center text-gray-400 mt-10">
-                                <i className="fas fa-receipt text-4xl mb-4"></i>
-                                <p>Nenhum pedido recente.</p>
+                            
+                            {!clienteAuth ? (
+                                <div className="flex flex-col items-center justify-center text-center mt-10">
+                                    <i className="fas fa-user-lock text-4xl text-gray-600 mb-4"></i>
+                                    <p className="text-gray-400 mb-4">Identifique-se para ver seus pedidos.</p>
+                                    <button onClick={() => setView('perfil')} className="px-6 py-2 border border-[#d79e51] text-[#d79e51] rounded-xl font-bold">Ir para Perfil</button>
+                                </div>
+                            ) : meusPedidos.length === 0 ? (
+                                <div className="text-center text-gray-500 mt-10">Nenhum pedido feito ainda.</div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {meusPedidos.map(p => {
+                                        const info = JSON.parse(p.itens || '{}');
+                                        return (
+                                            <div key={p.id} className="bg-[#363539] rounded-xl p-4 border border-gray-700">
+                                                <div className="flex justify-between items-start mb-2 border-b border-gray-700/50 pb-2">
+                                                    <div>
+                                                        <h4 className="font-medium text-white text-sm">Pedido #{p.id.substring(0,6).toUpperCase()}</h4>
+                                                        <span className="text-[10px] text-gray-500">{new Date(p.created_at).toLocaleString('pt-BR')}</span>
+                                                    </div>
+                                                    <span className="text-[#d79e51] font-bold text-sm">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
+                                                </div>
+                                                <p className="text-xs text-gray-300 mb-3 truncate">{info.lanches?.map(l => `${l.quantidade}x ${l.nome}`).join(', ')}</p>
+                                                <div className="flex justify-between items-center bg-[#1f1e22] p-2 rounded-lg">
+                                                    <span className="text-xs font-bold text-gray-400 uppercase">Status</span>
+                                                    <span className={`text-xs font-bold uppercase ${p.status==='novo'?'text-blue-400':p.status==='preparo'?'text-yellow-400':p.status==='pronto'?'text-green-400':p.status==='rejeitado'?'text-red-400':'text-gray-500'}`}>
+                                                        {p.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {view === 'perfil' && (
+                        <div className="pt-10 flex flex-col items-center min-h-[60vh]">
+                            <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
+                            <p className="text-gray-400 text-sm text-center mb-8">Identifique-se para facilitar seus pedidos.</p>
+                            
+                            {!clienteAuth ? (
+                                <form onSubmit={(e) => { e.preventDefault(); salvarPerfil(); }} className="w-full space-y-4 px-4">
+                                    <div>
+                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Nome Completo</label>
+                                        <input type="text" value={clienteDados.nome} onChange={e => setClienteDados({...clienteDados, nome: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Celular (WhatsApp)</label>
+                                        <input type="tel" value={clienteDados.celular} onChange={e => setClienteDados({...clienteDados, celular: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" required />
+                                    </div>
+                                    <button type="submit" className="w-full bg-[#d79e51] text-[#1a191c] font-bold text-xl py-3.5 rounded-xl shadow-lg mt-4">ACESSAR</button>
+                                </form>
+                            ) : (
+                                <div className="w-full space-y-4 px-4">
+                                    <div className="bg-[#1f1e22] border border-gray-700 rounded-xl p-4">
+                                        <div className="mb-4 border-b border-gray-700 pb-4">
+                                            <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Nome Completo</span>
+                                            <span className="text-white text-lg font-medium">{clienteDados.nome}</span>
+                                        </div>
+                                        <div>
+                                            <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Celular (WhatsApp)</span>
+                                            <span className="text-[#d79e51] text-lg tracking-wide">{clienteDados.celular}</span>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => {setClienteAuth(false); setClienteDados({nome:'', celular:''}); localStorage.removeItem('cliente_nome'); localStorage.removeItem('cliente_celular');}} className="w-full bg-transparent border border-gray-600 text-gray-300 py-3 rounded-xl hover:text-white">Sair da Conta</button>
+                                </div>
+                            )}
+
+                            <div className="mt-8 pt-4 border-t border-gray-800 text-center w-full">
+                                <button onClick={() => setView('admin-login')} className="text-[10px] text-gray-600 font-sans uppercase tracking-widest hover:text-[#d79e51] transition-colors">Área Restrita</button>
                             </div>
                         </div>
                     )}
 
-                    {}
-                    {/* --- ADMIN VIEW --- */}
-                    {view === 'admin' && (
-                         <div className="px-6 pt-6 pb-20">
-                            <h2 className="font-bold text-xl text-[#d79e51] uppercase mb-4 border-b border-gray-800 pb-2">Painel Admin</h2>
-                            
-                            <div className="flex space-x-2 mb-6">
-                                <button onClick={() => setAdminView('pedidos')} className={`px-4 py-2 rounded-lg text-sm font-bold ${adminView === 'pedidos' ? 'bg-[#d79e51] text-black' : 'bg-[#363539] text-white'}`}>Pedidos</button>
-                                <button onClick={() => setAdminView('configs')} className={`px-4 py-2 rounded-lg text-sm font-bold ${adminView === 'configs' ? 'bg-[#d79e51] text-black' : 'bg-[#363539] text-white'}`}>Configs</button>
-                            </div>
-
-                            {adminView === 'configs' && (
-                                <div className="space-y-4">
-                                    <div className="bg-[#1f1e22] p-4 rounded-xl border border-gray-800">
-                                        <h3 className="text-white font-medium mb-3">Configurações da Loja</h3>
-                                        
-                                        <div className="mb-4">
-                                            <label className="block text-gray-400 text-xs mb-1">Tempo de Entrega</label>
-                                            <div className="flex">
-                                                <input type="text" value={adminTempTempo} onChange={e => setAdminTempTempo(e.target.value)} className="bg-[#1a191c] text-white border border-gray-700 rounded-l-md px-3 py-2 text-sm w-full outline-none" />
-                                                <button onClick={salvarTempoDelivery} className="bg-[#363539] text-[#d79e51] px-4 rounded-r-md border border-l-0 border-gray-700"><i className="fas fa-save"></i></button>
-                                            </div>
-                                        </div>
-
-                                        <div className="mb-4">
-                                            <label className="block text-gray-400 text-xs mb-1">Raio (KM)</label>
-                                            <div className="flex">
-                                                <input type="number" value={adminTempRaio} onChange={e => setAdminTempRaio(e.target.value)} className="bg-[#1a191c] text-white border border-gray-700 rounded-l-md px-3 py-2 text-sm w-full outline-none" />
-                                                <button onClick={salvarRaioEntrega} className="bg-[#363539] text-[#d79e51] px-4 rounded-r-md border border-l-0 border-gray-700"><i className="fas fa-save"></i></button>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-700">
-                                            <div>
-                                                <span className="text-gray-400 text-xs block">Status da Loja</span>
-                                                <span className={`text-sm font-bold ${restaurante.is_aberto ? 'text-green-400' : 'text-red-400'}`}>{restaurante.is_aberto ? 'Aberto' : 'Fechado'}</span>
-                                            </div>
-                                            <label className="flex items-center cursor-pointer">
-                                                <div className="relative">
-                                                    <input type="checkbox" checked={restaurante.is_aberto} onChange={toggleStatusLoja} className="sr-only" />
-                                                    <div className={`block w-14 h-8 rounded-full transition-colors duration-300 ${restaurante.is_aberto ? 'bg-green-500' : 'bg-gray-700'}`}></div>
-                                                    <div className={`absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform duration-300 ${restaurante.is_aberto ? 'translate-x-6' : ''}`}></div>
-                                                </div>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => setView('home')} className="w-full text-center text-sm text-gray-500 hover:text-white mt-4">Sair do Admin</button>
+                    {view === 'admin-login' && (
+                        <div className="pt-10 flex flex-col items-center px-6 min-h-[60vh]">
+                            <h2 className="font-bold text-2xl text-[#d79e51] uppercase tracking-wider text-center mb-2">Acesso Restrito</h2>
+                            <p className="text-gray-400 text-sm text-center mb-8">Área exclusiva para gestão.</p>
+                            <form onSubmit={loginAdminForm} className="w-full max-w-md space-y-4">
+                                <div>
+                                    <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase tracking-wider">E-mail</label>
+                                    <input type="email" name="email" placeholder="admin@email.com" className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors text-sm" required />
                                 </div>
-                            )}
-
-                            {adminView === 'pedidos' && (
-                                <div className="text-center text-gray-500 mt-10">
-                                    <p>Nenhum pedido na fila.</p>
+                                <div>
+                                    <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase tracking-wider">Senha</label>
+                                    <input type="password" name="senha" placeholder="••••••••" className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors text-sm" required />
                                 </div>
-                            )}
-                         </div>
+                                <button type="submit" className="w-full bg-gray-800 hover:bg-gray-700 text-white font-bold text-xl py-3.5 rounded-xl border border-gray-600 active:scale-95 transition-all mt-4">
+                                    ENTRAR NO PAINEL
+                                </button>
+                                <button type="button" onClick={() => setView('perfil')} className="w-full bg-transparent text-gray-500 hover:text-white text-sm py-2 mt-2">Voltar</button>
+                            </form>
+                        </div>
                     )}
-
                 </div>
 
-                {}
-                {/* --- NAVEGAÇÃO INFERIOR --- */}
-                {view !== 'admin' && (
-                    <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#242326]/90 backdrop-blur-xl border-t border-gray-700/50 px-3 py-3.5 flex justify-between items-center z-30">
-                        {[
-                            { id: 'home', icon: 'fa-home', label: 'Início' },
-                            { id: 'cardapio', icon: 'fa-book-open', label: 'Cardápio' },
-                            { id: 'pedidos', icon: 'fa-receipt', label: 'Pedidos' },
-                            { id: 'carrinho', icon: 'fa-shopping-cart', label: 'Carrinho', badge: true },
-                            { id: 'perfil', icon: 'fa-user', label: 'Perfil' }
-                        ].map(nav => (
-                            <button key={nav.id} onClick={() => setView(nav.id)} className={`flex flex-col items-center space-y-1.5 w-[20%] relative transition-opacity ${view === nav.id ? 'opacity-100' : 'opacity-60'}`}>
-                                <i className={`fas ${nav.icon} text-xl ${view === nav.id ? 'text-[#d79e51]' : 'text-white'}`}></i>
-                                <span className={`text-[10px] font-medium ${view === nav.id ? 'text-[#d79e51]' : 'text-gray-300'}`}>{nav.label}</span>
-                                {nav.badge && badgeCount > 0 && (
-                                    <div className="absolute -top-1.5 right-1.5 bg-[#d79e51] text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                                        {badgeCount}
-                                    </div>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                )}
+                <div className="fixed lg:absolute bottom-0 left-0 right-0 bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
+                    <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
+                    </button>
+                    <button onClick={() => setView('cardapio')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'cardapio' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className="fas fa-book-open text-xl"></i><span className="text-[10px] font-medium">Cardápio</span>
+                    </button>
+                    <button onClick={() => setView('pedidos')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'pedidos' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className="fas fa-receipt text-xl"></i><span className="text-[10px] font-medium">Pedidos</span>
+                    </button>
+                    <button onClick={() => setView('carrinho')} className={`relative flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'carrinho' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className="fas fa-shopping-cart text-xl"></i><span className="text-[10px] font-medium">Carrinho</span>
+                        {badgeCount > 0 && <span className="absolute -top-1 right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{badgeCount}</span>}
+                    </button>
+                    <button onClick={() => setView('perfil')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'perfil' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className="fas fa-user text-xl"></i><span className="text-[10px] font-medium">Perfil</span>
+                    </button>
+                </div>
             </div>
         </div>
     );
-}
+};
+
+export default App;
