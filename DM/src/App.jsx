@@ -241,13 +241,20 @@ const App = () => {
 
     const confirmarExclusao = async () => {
         if (modalConfirmacaoAberto.id) {
+            const idExcluir = modalConfirmacaoAberto.id;
+            
+            // Atualiza a tela e fecha o modal instantaneamente (Optimistic Update)
+            setProdutos(prev => prev.filter(p => p.id !== idExcluir));
+            setModalConfirmacaoAberto({ aberto: false, id: null });
+            
+            // Realiza a exclusão no banco de dados em segundo plano
             if (supabase) {
-                 const { error } = await supabase.from('produtos').delete().eq('id', modalConfirmacaoAberto.id);
+                 const { error } = await supabase.from('produtos').delete().eq('id', idExcluir);
                  if (error) console.error("Erro ao excluir produto no Supabase:", error);
             }
-            setProdutos(produtos.filter(p => p.id !== modalConfirmacaoAberto.id));
+        } else {
+            setModalConfirmacaoAberto({ aberto: false, id: null });
         }
-        setModalConfirmacaoAberto({ aberto: false, id: null });
     };
 
     const cancelarExclusao = () => {
