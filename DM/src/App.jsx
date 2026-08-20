@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-// Define Supabase connection details
-const SUPABASE_URL = 'https://vzcrfnyfiqsfrwswlvyf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6Y3JmbnlmaXFzZnJ3c3dsdnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMTQ1NjksImV4cCI6MjA5NDc5MDU2OX0.es2duCl9cJQjSH787kCxtUbl-UqqcwedvKF5lf-uc7s';
 
 const App = () => {
     const [view, setView] = useState('home');
     const [carrinho, setCarrinho] = useState([]);
     const [restaurante, setRestaurante] = useState({
+        id: null,
         nome: 'DOGS DO MIRSO',
         is_aberto: true,
         tempo_entrega: '30-45 min',
@@ -16,14 +14,7 @@ const App = () => {
     });
     
     const [produtos, setProdutos] = useState([]);
-
-    const [categorias, setCategorias] = useState([
-        { id: 'c1', nome: 'Cachorros', ordem: 1 },
-        { id: 'c2', nome: 'Porções', ordem: 2 },
-        { id: 'c3', nome: 'Bebidas', ordem: 3 },
-        { id: 'c4', nome: 'Combos', ordem: 4 }
-    ]);
-
+    const [categorias, setCategorias] = useState([]);
     const [pedidosAdmin, setPedidosAdmin] = useState([]);
     const [clienteAuth, setClienteAuth] = useState(false);
     const [clienteDados, setClienteDados] = useState({ nome: '', celular: '' });
@@ -38,105 +29,15 @@ const App = () => {
     const [mapaAberto, setMapaAberto] = useState(false);
     const mapRef = useRef(null);
     const [redirectPosLogin, setRedirectPosLogin] = useState(null);
+    
     const [supabase, setSupabase] = useState(null);
+    const [dbLoading, setDbLoading] = useState(true);
 
-    useEffect(() => {
-        // Load Tailwind CSS dynamically
-        if (!document.getElementById('tailwind-cdn')) {
-            const script = document.createElement('script');
-            script.id = 'tailwind-cdn';
-            script.src = 'https://cdn.tailwindcss.com';
-            document.head.appendChild(script);
-            
-            const fa = document.createElement('link');
-            fa.rel = 'stylesheet';
-            fa.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-            document.head.appendChild(fa);
-            
-            const leafletCss = document.createElement('link');
-            leafletCss.rel = 'stylesheet';
-            leafletCss.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            document.head.appendChild(leafletCss);
-
-            const leafletJs = document.createElement('script');
-            leafletJs.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            document.head.appendChild(leafletJs);
-        }
-
-        // Initialize Supabase via script tag for maximum compatibility and avoid fetch/CORS errors
-        if (!document.getElementById('supabase-script')) {
-            const sbScript = document.createElement('script');
-            sbScript.id = 'supabase-script';
-            sbScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-            sbScript.onload = () => {
-                const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-                    auth: { persistSession: false }
-                });
-                setSupabase(sbClient);
-                carregarDadosSupabase(sbClient);
-            };
-            document.head.appendChild(sbScript);
-        }
-
-        // Load local storage data
-        const nome = localStorage.getItem('cliente_nome');
-        const cel = localStorage.getItem('cliente_celular');
-        if (nome && cel) {
-            setClienteAuth(true);
-            setClienteDados({ nome, celular: cel });
-            carregarMeusPedidos(cel);
-        }
-        
-        if (localStorage.getItem('isAdminBypass') === 'true') {
-            setIsAdmin(true);
-            carregarPedidosAdminLocal();
-        }
-    }, []);
-
-    const carregarDadosSupabase = async (client) => {
-        try {
-            // Fetch Products
-            const { data: produtosData, error: produtosError } = await client.from('produtos').select('*');
-            if (produtosError) {
-                console.error("Erro ao carregar produtos:", produtosError);
-                if (produtosError.message && produtosError.message.includes("Failed to fetch")) {
-                    alert("FALHA DE REDE: O banco de dados Supabase recusou a conexão. Isso geralmente acontece se o seu projeto gratuito entrou em 'Pausa' por inatividade. Acesse o painel do Supabase.com e reative seu banco de dados.");
-                }
-            } else if (produtosData && produtosData.length > 0) {
-                setProdutos(produtosData);
-            }
-
-            // Fetch Categories
-            const { data: categoriasData, error: categoriasError } = await client.from('categorias').select('*').order('ordem', { ascending: true });
-            if (categoriasData && categoriasData.length > 0) {
-                setCategorias(categoriasData);
-            } else if (categoriasError) {
-                console.error("Erro ao carregar categorias:", categoriasError);
-            }
-
-             // Fetch Restaurant Config
-             const { data: restData, error: restError } = await client.from('restaurante').select('*').limit(1);
-             if (restData && restData.length > 0) {
-                 setRestaurante(restData[0]);
-             } else if (restError) {
-                 console.error("Erro ao carregar configurações do restaurante:", restError);
-             }
-
-        } catch (error) {
-            console.error("Erro geral ao conectar com Supabase:", error);
-        }
-    };
-
-    const carregarPedidosAdminLocal = async () => {
-        if (supabase) {
-            const { data, error } = await supabase.from('pedidos').select('*').order('created_at', { ascending: false });
-            if (data) {
-                setPedidosAdmin(data);
-            }
-        } else {
-            const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
-            setPedidosAdmin(pedSalvos);
-        }
+    const carregarPedidosAdminLocal = () => {
+        if (!supabase) return;
+        supabase.from('pedidos').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+            if (data) setPedidosAdmin(data);
+        });
     };
 
     const fazerPedidoAgora = () => {
@@ -185,19 +86,14 @@ const App = () => {
             alert('Preencha nome e celular.');
             return;
         }
-        
-        if (supabase) {
-             // Upsert client data to Supabase
-             await supabase.from('clientes').upsert({
-                 celular: clienteDados.celular,
-                 nome: clienteDados.nome
-             });
-        }
-
         localStorage.setItem('cliente_nome', clienteDados.nome);
         localStorage.setItem('cliente_celular', clienteDados.celular);
         setClienteAuth(true);
-        carregarMeusPedidos(clienteDados.celular);
+        
+        if (supabase) {
+             await supabase.from('clientes').upsert({ celular: clienteDados.celular, nome: clienteDados.nome }, { onConflict: 'celular' });
+             carregarMeusPedidos(clienteDados.celular);
+        }
         
         if (redirectPosLogin) {
             setView(redirectPosLogin);
@@ -207,16 +103,104 @@ const App = () => {
         }
     };
 
-    const carregarMeusPedidos = async (celular) => {
-        if (supabase) {
-             const { data, error } = await supabase.from('pedidos').select('*').eq('cliente_celular', celular).order('created_at', { ascending: false });
-             if (data) {
-                 setMeusPedidos(data);
-             }
-        } else {
-            const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
-            setMeusPedidos(pedSalvos.filter(p => p.cliente_celular === celular));
+    useEffect(() => {
+        const initScripts = async () => {
+            if (!document.getElementById('tailwind-cdn')) {
+                const script = document.createElement('script');
+                script.id = 'tailwind-cdn';
+                script.src = 'https://cdn.tailwindcss.com';
+                document.head.appendChild(script);
+                
+                const fa = document.createElement('link');
+                fa.rel = 'stylesheet';
+                fa.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+                document.head.appendChild(fa);
+                
+                const leafletCss = document.createElement('link');
+                leafletCss.rel = 'stylesheet';
+                leafletCss.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                document.head.appendChild(leafletCss);
+
+                const leafletJs = document.createElement('script');
+                leafletJs.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                document.head.appendChild(leafletJs);
+            }
+
+            if (!window.supabase) {
+                const sbScript = document.createElement('script');
+                sbScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+                sbScript.onload = () => {
+                     const sbUrl = 'https://vzcrfnyfiqsfrwswlvyf.supabase.co';
+                     const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6Y3JmbnlmaXFzZnJ3c3dsdnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMTQ1NjksImV4cCI6MjA5NDc5MDU2OX0.es2duCl9cJQjSH787kCxtUbl-UqqcwedvKF5lf-uc7s';
+                     
+                     // Opções para evitar problemas de Fetch em ambientes de iframe/preview
+                     const options = {
+                         auth: { persistSession: false },
+                         global: { fetch: window.fetch.bind(window) }
+                     };
+                     
+                     const sbClient = window.supabase.createClient(sbUrl, sbKey, options);
+                     setSupabase(sbClient);
+                };
+                document.head.appendChild(sbScript);
+            }
+        };
+        initScripts();
+        
+        const nome = localStorage.getItem('cliente_nome');
+        const cel = localStorage.getItem('cliente_celular');
+        if (nome && cel) {
+            setClienteAuth(true);
+            setClienteDados({ nome, celular: cel });
         }
+        
+        if (localStorage.getItem('isAdminBypass') === 'true') {
+            setIsAdmin(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!supabase) return;
+
+        const carregarDados = async () => {
+            try {
+                const { data: catData, error: catError } = await supabase.from('categorias').select('*').order('ordem', { ascending: true });
+                if (catError) throw catError;
+                if (catData && catData.length > 0) setCategorias(catData);
+
+                const { data: prodData, error: prodError } = await supabase.from('produtos').select('*');
+                if (prodError) throw prodError;
+                if (prodData) setProdutos(prodData);
+
+                const { data: restData, error: restError } = await supabase.from('restaurante').select('*').limit(1).single();
+                if (restError && restError.code !== 'PGRST116') throw restError; // Ignora erro de "nenhuma linha"
+                
+                if (restData) {
+                    setRestaurante(restData);
+                } else {
+                     // Cria o restaurante padrão caso não exista
+                     const { data: novoRest } = await supabase.from('restaurante').insert([{ nome: 'DOGS DO MIRSO' }]).select().single();
+                     if (novoRest) setRestaurante(novoRest);
+                }
+                
+                if (isAdmin) carregarPedidosAdminLocal();
+                if (clienteAuth) carregarMeusPedidos(clienteDados.celular);
+
+            } catch (err) {
+                console.error("Erro ao carregar do banco:", err);
+            } finally {
+                setDbLoading(false);
+            }
+        };
+
+        carregarDados();
+    }, [supabase]);
+
+    const carregarMeusPedidos = (celular) => {
+        if (!supabase) return;
+        supabase.from('pedidos').select('*').eq('cliente_celular', celular).order('created_at', { ascending: false }).then(({ data }) => {
+            if (data) setMeusPedidos(data);
+        });
     };
 
     const loginAdminForm = (e) => {
@@ -244,17 +228,19 @@ const App = () => {
     };
 
     const confirmarExclusao = async () => {
-        if (modalConfirmacaoAberto.id) {
-            const idExcluir = modalConfirmacaoAberto.id;
+        if (modalConfirmacaoAberto.id && supabase) {
+            const idParaExcluir = modalConfirmacaoAberto.id;
             
-            // Atualiza a tela e fecha o modal instantaneamente (Optimistic Update)
-            setProdutos(prev => prev.filter(p => p.id !== idExcluir));
+            // Atualização Otimista: Remove da tela imediatamente
+            setProdutos(produtos.filter(p => p.id !== idParaExcluir));
             setModalConfirmacaoAberto({ aberto: false, id: null });
+            setModalProdutoAberto(false);
             
-            // Realiza a exclusão no banco de dados em segundo plano
-            if (supabase) {
-                 const { error } = await supabase.from('produtos').delete().eq('id', idExcluir);
-                 if (error) console.error("Erro ao excluir produto no Supabase:", error);
+            // Deleta no banco de dados em segundo plano
+            try {
+                await supabase.from('produtos').delete().eq('id', idParaExcluir);
+            } catch (err) {
+                console.error("Erro ao excluir do banco:", err);
             }
         } else {
             setModalConfirmacaoAberto({ aberto: false, id: null });
@@ -271,6 +257,58 @@ const App = () => {
         
         if (supabase && restaurante.id) {
              await supabase.from('restaurante').update({ is_aberto: novoStatus }).eq('id', restaurante.id);
+        }
+    };
+
+    const handleCapaUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setRestaurante({ ...restaurante, foto_capa_url: reader.result });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleLogoUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setRestaurante({ ...restaurante, logo_url: reader.result });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const salvarConfiguracoes = async () => {
+        if (!supabase || !restaurante.id) {
+            alert("Sem conexão com o banco de dados.");
+            return;
+        }
+        
+        if (restaurante.foto_capa_url && restaurante.foto_capa_url.length > 2000000) {
+            alert("A foto de capa é muito grande! Escolha uma imagem mais leve.");
+            return;
+        }
+        if (restaurante.logo_url && restaurante.logo_url.length > 2000000) {
+            alert("A logo é muito grande! Escolha uma imagem mais leve.");
+            return;
+        }
+
+        try {
+            const { error } = await supabase.from('restaurante').update({
+                tempo_entrega: restaurante.tempo_entrega,
+                foto_capa_url: restaurante.foto_capa_url,
+                logo_url: restaurante.logo_url
+            }).eq('id', restaurante.id);
+            
+            if (error) throw error;
+            alert("Configurações atualizadas com sucesso!");
+        } catch (err) {
+            console.error("Erro ao salvar configurações:", err);
+            alert("Falha ao salvar as configurações.");
         }
     };
 
@@ -295,7 +333,7 @@ const App = () => {
             mapRef.current = null;
             setMapaAberto(false);
         }
-    }, [view, checkoutForm.tipo]);
+    }, [view, checkoutForm.tipo, restaurante.raio_entrega]);
 
     const finalizarPedido = async () => {
         if (!restaurante.is_aberto) {
@@ -307,30 +345,36 @@ const App = () => {
             return;
         }
 
+        const totalCalc = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+        
         const novoPedido = {
             id: Math.random().toString(36).substring(2, 9),
             cliente_nome: clienteDados.nome,
             cliente_celular: clienteDados.celular,
-            total: carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0),
+            total: totalCalc,
             status: 'novo',
-            itens: JSON.stringify({
+            itens: {
                 lanches: carrinho,
                 endereco: checkoutForm.endereco,
                 referencia: checkoutForm.referencia,
                 pagamento: checkoutForm.pagamento,
                 troco: checkoutForm.troco
-            })
+            }
         };
 
         if (supabase) {
-             const { error } = await supabase.from('pedidos').insert([novoPedido]);
-             if (error) console.error("Erro ao salvar pedido no Supabase:", error);
+             try {
+                  const { error } = await supabase.from('pedidos').insert([novoPedido]);
+                  if (error) {
+                      console.error("Erro insert pedido:", error);
+                      alert("Erro ao enviar pedido para o restaurante.");
+                      return;
+                  }
+             } catch (err) {
+                  console.error(err);
+                  return;
+             }
         }
-
-        // Keep local storage for fallback/speed
-        const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
-        pedSalvos.push({...novoPedido, created_at: new Date().toISOString()});
-        localStorage.setItem('pedidos_mock', JSON.stringify(pedSalvos));
         
         setCarrinho([]);
         carregarMeusPedidos(clienteDados.celular);
@@ -339,23 +383,25 @@ const App = () => {
     };
 
     const moverPedidoStatus = async (id, novoStatus) => {
-        const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
-        const atualizados = pedSalvos.map(p => p.id === id ? { ...p, status: novoStatus } : p);
-        localStorage.setItem('pedidos_mock', JSON.stringify(atualizados));
-        setPedidosAdmin(atualizados);
-        
+        setPedidosAdmin(pedidosAdmin.map(p => p.id === id ? { ...p, status: novoStatus } : p));
         if (supabase) {
             await supabase.from('pedidos').update({ status: novoStatus }).eq('id', id);
         }
     };
 
     const imprimirNota = (pedido) => {
-        const info = JSON.parse(pedido.itens || '{}');
+        let info = {};
+        if (typeof pedido.itens === 'string') {
+            try { info = JSON.parse(pedido.itens); } catch(e) {}
+        } else {
+            info = pedido.itens || {};
+        }
+        
         const lanchesHtml = info.lanches ? info.lanches.map(l => 
             `${l.quantidade}x ${l.nome} ${l.observacao ? `(Obs: ${l.observacao})` : ''} - R$ ${(l.quantidade * l.preco).toFixed(2).replace('.',',')}`
         ).join('<br/>') : '';
 
-        const d = new Date(pedido.created_at || new Date());
+        const d = new Date(pedido.created_at || Date.now());
         const dataFormat = d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR');
 
         const win = window.open('', '_blank', 'width=350,height=600');
@@ -396,59 +442,55 @@ const App = () => {
     };
     
     const handleSaveProduto = async () => {
+        if (!supabase) return;
+        
+        // Bloqueia se a imagem convertida (base64) for muito grande (exceder limites do servidor)
+        if (produtoEditando.imagem_url && produtoEditando.imagem_url.length > 2000000) {
+            alert("Erro: A imagem escolhida é muito pesada para o banco de dados. Por favor, escolha uma imagem de menor tamanho/resolução.");
+            return;
+        }
+
+        // Validação de campos obrigatórios do banco
+        if (!produtoEditando.nome) { alert("Nome do produto é obrigatório."); return; }
+        if (!produtoEditando.preco) { alert("Preço do produto é obrigatório."); return; }
+
         try {
-            let produtoFinal = { ...produtoEditando };
+            // Garante que o produto sempre tenha uma categoria válida atrelada, pegando a primeira se necessário
+            const catIdFinal = produtoEditando.categoria_id || (categorias.length > 0 ? categorias[0].id : null);
             
-            // 1. Validação Obrigatória
-            if (!produtoFinal.nome || produtoFinal.preco === '' || produtoFinal.preco === 0) {
-                alert("Por favor, preencha o Nome e o Preço do produto!");
-                return;
-            }
+            const payload = {
+                nome: produtoEditando.nome,
+                preco: produtoEditando.preco,
+                descricao: produtoEditando.descricao || '',
+                categoria_id: catIdFinal,
+                ativo: produtoEditando.ativo,
+                is_destaque: produtoEditando.is_destaque,
+                imagem_url: produtoEditando.imagem_url || ''
+            };
 
-            // 2. Tratamento de Categoria Vazia
-            if (!produtoFinal.categoria_id && categorias.length > 0) {
-                produtoFinal.categoria_id = categorias[0].id;
-            } else if (!produtoFinal.categoria_id) {
-                produtoFinal.categoria_id = null;
-            }
+            let savedData = null;
 
-            // 3. Validação de Tamanho de Imagem (Evita Erro 413 do Supabase)
-            if (produtoFinal.imagem_url && produtoFinal.imagem_url.length > 2000000) {
-                alert("A imagem selecionada é muito grande! (Máximo de ~2MB). Escolha uma foto mais leve, reduza a resolução e tente novamente.");
-                return;
-            }
-
-            if (!supabase) {
-                alert("Falha de conexão com o banco de dados Supabase. Verifique a internet e recarregue a página.");
-                return;
-            }
-
-            if(produtoFinal.id) {
-                 const { id, ...dadosUpdate } = produtoFinal;
-                 
-                 // Atualiza no banco
-                 const { error } = await supabase.from('produtos').update(dadosUpdate).eq('id', id);
-                 if (error) throw error;
-                 
-                 setProdutos(produtos.map(p => p.id === produtoFinal.id ? produtoFinal : p));
+            if (produtoEditando.id) {
+                // Atualização (separando o ID do payload)
+                const { data, error } = await supabase.from('produtos').update(payload).eq('id', produtoEditando.id).select();
+                if (error) throw error;
+                savedData = data && data.length > 0 ? data[0] : { ...payload, id: produtoEditando.id };
+                setProdutos(produtos.map(p => p.id === savedData.id ? savedData : p));
             } else {
-                 const newId = Math.random().toString(36).substring(2, 9);
-                 produtoFinal.id = newId;
-                 
-                 // Insere no banco com .select() para evitar falhas silenciosas
-                 const { error } = await supabase.from('produtos').insert([produtoFinal]).select();
-                 if (error) throw error;
-                 
-                 setProdutos([...produtos, produtoFinal]);
+                // Inserção nova (gerando ID na hora)
+                payload.id = Math.random().toString(36).substring(2, 9);
+                const { data, error } = await supabase.from('produtos').insert([payload]).select();
+                if (error) throw error;
+                savedData = data && data.length > 0 ? data[0] : payload;
+                setProdutos([...produtos, savedData]);
             }
             
             setModalProdutoAberto(false);
-            
         } catch (err) {
-            console.error("ERRO COMPLETO DO BANCO:", err);
-            alert("ERRO AO SALVAR NO BANCO DE DADOS:\n\n" + (err.message || JSON.stringify(err)));
+            console.error("Erro detalhado ao salvar produto no Supabase:", err);
+            alert(`ERRO AO SALVAR NO BANCO DE DADOS:\n\n${err.message || JSON.stringify(err)}\n\nVerifique as permissões de tabela no Supabase ou recarregue a página.`);
         }
-    }
+    };
 
     const totalCarrinho = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const badgeCount = carrinho.reduce((sum, item) => sum + item.quantidade, 0);
@@ -517,7 +559,7 @@ const App = () => {
                     </header>
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
-                        {/* Pedidos View */}
+                        
                         {adminView === 'pedidos' && (
                             <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 lg:gap-6 h-full items-start">
                                 {['novo', 'preparo', 'pronto', 'finalizado'].map(status => (
@@ -527,7 +569,12 @@ const App = () => {
                                         </div>
                                         <div className="p-3 overflow-y-auto space-y-3 hide-scrollbar flex-1 min-h-[150px]">
                                             {pedidosAdmin.filter(p => p.status === status || (status === 'finalizado' && p.status === 'rejeitado')).map(p => {
-                                                const info = JSON.parse(p.itens || '{}');
+                                                let info = {};
+                                                if (typeof p.itens === 'string') {
+                                                    try { info = JSON.parse(p.itens); } catch(e) {}
+                                                } else {
+                                                    info = p.itens || {};
+                                                }
                                                 return (
                                                     <div key={p.id} className="bg-[#363539] p-3 rounded-lg border border-gray-700 shadow-sm">
                                                         <div className="flex justify-between border-b border-gray-700 pb-2 mb-2">
@@ -567,7 +614,6 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Cardapio View */}
                         {adminView === 'cardapio' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
                                 {produtos.map(p => {
@@ -592,7 +638,6 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Configs View */}
                         {adminView === 'configs' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -606,10 +651,10 @@ const App = () => {
                                                 <p className="text-xs text-gray-400 mt-1">Abra ou feche para receber pedidos.</p>
                                             </div>
                                             <label className="flex items-center cursor-pointer group">
-                                                <div className="relative">
+                                                <div className="relative" style={{ width: '40px', height: '24px' }}>
                                                     <input type="checkbox" checked={restaurante.is_aberto} onChange={toggleStatusLoja} className="sr-only" />
-                                                    <div className={`block w-10 h-6 rounded-full transition-colors duration-300 shadow-inner ${restaurante.is_aberto ? 'bg-green-500' : 'bg-gray-700'}`}></div>
-                                                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 shadow-md ${restaurante.is_aberto ? 'translate-x-4' : ''}`}></div>
+                                                    <div className="block w-10 h-6 rounded-full transition-colors duration-300 shadow-inner" style={{ backgroundColor: restaurante.is_aberto ? '#22c55e' : '#374151' }}></div>
+                                                    <div className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 shadow-md" style={{ transform: restaurante.is_aberto ? 'translateX(16px)' : 'translateX(0)' }}></div>
                                                 </div>
                                                 <span className={`ml-3 text-xs font-bold uppercase tracking-wide ${restaurante.is_aberto ? 'text-green-400' : 'text-red-400'}`}>{restaurante.is_aberto ? 'Aberto' : 'Fechado'}</span>
                                             </label>
@@ -634,24 +679,38 @@ const App = () => {
                                     <div className="p-5">
                                         <p className="text-gray-400 text-sm mb-5">Personalize a aparência visual do seu cardápio digital.</p>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <button className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-700 rounded-xl hover:border-[#d79e51] hover:bg-[#d79e51]/5 transition-all group">
-                                                <i className="fas fa-image text-3xl text-gray-500 group-hover:text-[#d79e51] mb-3 transition-colors"></i>
-                                                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Trocar Foto de Capa</span>
-                                            </button>
+                                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-700 rounded-xl hover:border-[#d79e51] hover:bg-[#d79e51]/5 transition-all group cursor-pointer relative overflow-hidden">
+                                                <input type="file" accept="image/*" onChange={handleCapaUpload} className="hidden" />
+                                                {restaurante.foto_capa_url && restaurante.foto_capa_url !== 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' && (
+                                                    <img src={restaurante.foto_capa_url} className="absolute inset-0 w-full h-full object-cover opacity-40" alt="Capa" />
+                                                )}
+                                                <i className="fas fa-image text-3xl text-gray-500 group-hover:text-[#d79e51] mb-3 transition-colors relative z-10"></i>
+                                                <span className="text-sm font-medium text-gray-300 group-hover:text-white relative z-10">Trocar Foto de Capa</span>
+                                            </label>
                                             
-                                            <button className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-700 rounded-xl hover:border-[#d79e51] hover:bg-[#d79e51]/5 transition-all group">
-                                                <i className="fas fa-bullseye text-3xl text-gray-500 group-hover:text-[#d79e51] mb-3 transition-colors"></i>
-                                                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Trocar Logo</span>
-                                            </button>
+                                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-700 rounded-xl hover:border-[#d79e51] hover:bg-[#d79e51]/5 transition-all group cursor-pointer relative overflow-hidden">
+                                                <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                                                {restaurante.logo_url && (
+                                                    <img src={restaurante.logo_url} className="absolute inset-0 w-full h-full object-contain opacity-40 bg-[#1f1e22]" alt="Logo" />
+                                                )}
+                                                <i className="fas fa-bullseye text-3xl text-gray-500 group-hover:text-[#d79e51] mb-3 transition-colors relative z-10"></i>
+                                                <span className="text-sm font-medium text-gray-300 group-hover:text-white relative z-10">Trocar Logo</span>
+                                            </label>
                                         </div>
                                     </div>
+                                </div>
+                                
+                                <div className="flex justify-end mt-6">
+                                    <button onClick={salvarConfiguracoes} className="px-6 py-3 bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center">
+                                        <i className="fas fa-save mr-2"></i> Salvar Alterações
+                                    </button>
                                 </div>
                             </div>
                         )}
                     </main>
                 </div>
                 
-                {/* Product Modal */}
+                {/* Modal Produto */}
                 {modalProdutoAberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                         <div className="bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
@@ -694,15 +753,15 @@ const App = () => {
                                 <div className="flex items-center space-x-6 pt-3 border-t border-gray-800">
                                     <label className="flex items-center space-x-2 cursor-pointer group">
                                         <input type="checkbox" checked={produtoEditando?.ativo ?? true} onChange={(e) => setProdutoEditando({...produtoEditando, ativo: e.target.checked})} className="sr-only peer" />
-                                        <div className={`w-9 h-5 rounded-full relative transition-colors ${produtoEditando?.ativo !== false ? 'bg-[#d79e51]' : 'bg-gray-700'}`}>
-                                            <div className={`absolute top-[2px] bg-white border-gray-300 border rounded-full h-4 w-4 transition-transform ${produtoEditando?.ativo !== false ? 'left-[2px] translate-x-full border-white' : 'left-[2px]'}`}></div>
+                                        <div className="w-9 h-5 rounded-full relative transition-colors duration-200" style={{ backgroundColor: (produtoEditando?.ativo ?? true) ? '#d79e51' : '#374151' }}>
+                                             <div className="absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-4 w-4 transition-transform duration-200" style={{ transform: (produtoEditando?.ativo ?? true) ? 'translateX(16px)' : 'translateX(0)' }}></div>
                                         </div>
                                         <span className="text-xs text-gray-300">Em Estoque</span>
                                     </label>
                                     <label className="flex items-center space-x-2 cursor-pointer group">
                                         <input type="checkbox" checked={produtoEditando?.is_destaque ?? false} onChange={(e) => setProdutoEditando({...produtoEditando, is_destaque: e.target.checked})} className="sr-only peer" />
-                                        <div className={`w-9 h-5 rounded-full relative transition-colors ${produtoEditando?.is_destaque ? 'bg-[#d79e51]' : 'bg-gray-700'}`}>
-                                            <div className={`absolute top-[2px] bg-white border-gray-300 border rounded-full h-4 w-4 transition-transform ${produtoEditando?.is_destaque ? 'left-[2px] translate-x-full border-white' : 'left-[2px]'}`}></div>
+                                        <div className="w-9 h-5 rounded-full relative transition-colors duration-200" style={{ backgroundColor: (produtoEditando?.is_destaque ?? false) ? '#d79e51' : '#374151' }}>
+                                             <div className="absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-4 w-4 transition-transform duration-200" style={{ transform: (produtoEditando?.is_destaque ?? false) ? 'translateX(16px)' : 'translateX(0)' }}></div>
                                         </div>
                                         <span className="text-xs text-gray-300">Destaque</span>
                                     </label>
@@ -711,7 +770,7 @@ const App = () => {
                             <div className="p-4 border-t border-gray-800 flex justify-between items-center bg-[#1f1e22] rounded-b-xl">
                                 <div>
                                     {produtoEditando?.id && (
-                                        <button onClick={() => { setModalProdutoAberto(false); excluirProduto(produtoEditando.id); }} className="px-4 py-2 rounded-lg font-bold text-xs text-red-400 border border-red-900/50 hover:bg-red-900/20 transition-colors">Excluir</button>
+                                        <button onClick={() => { excluirProduto(produtoEditando.id); }} className="px-4 py-2 rounded-lg font-bold text-xs text-red-400 border border-red-900/50 hover:bg-red-900/20 transition-colors">Excluir</button>
                                     )}
                                 </div>
                                 <div className="flex space-x-3">
@@ -723,33 +782,33 @@ const App = () => {
                     </div>
                 )}
 
-            {/* Modal Confirmação Exclusão */}
-            {modalConfirmacaoAberto.aberto && (
-                <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-[#242326] border border-red-900/50 rounded-xl w-full max-w-sm flex flex-col shadow-[0_15px_40px_rgba(0,0,0,0.5)] transform animate-fade-in">
-                        <div className="p-5 flex flex-col items-center text-center">
-                            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
-                                <i className="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+                {/* Modal Confirmacao */}
+                {modalConfirmacaoAberto.aberto && (
+                    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-[#242326] border border-red-900/50 rounded-xl w-full max-w-sm flex flex-col shadow-[0_15px_40px_rgba(0,0,0,0.5)] transform animate-fade-in">
+                            <div className="p-5 flex flex-col items-center text-center">
+                                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+                                    <i className="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+                                </div>
+                                <h3 className="text-white text-lg font-bold mb-2">Excluir Produto?</h3>
+                                <p className="text-gray-400 text-sm">Tem certeza que deseja apagar este item permanentemente? Esta ação não pode ser desfeita.</p>
                             </div>
-                            <h3 className="text-white text-lg font-bold mb-2">Excluir Produto?</h3>
-                            <p className="text-gray-400 text-sm">Tem certeza que deseja apagar este item permanentemente? Esta ação não pode ser desfeita.</p>
-                        </div>
-                        <div className="p-4 border-t border-gray-800 flex justify-end space-x-3 bg-[#1f1e22] rounded-b-xl">
-                            <button onClick={cancelarExclusao} className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm text-gray-400 border border-gray-600 hover:text-white transition-colors">Cancelar</button>
-                            <button onClick={confirmarExclusao} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all">Sim, Excluir</button>
+                            <div className="p-4 border-t border-gray-800 flex justify-end space-x-3 bg-[#1f1e22] rounded-b-xl">
+                                <button onClick={cancelarExclusao} className="flex-1 px-4 py-2.5 rounded-lg font-bold text-sm text-gray-400 border border-gray-600 hover:text-white transition-colors">Cancelar</button>
+                                <button onClick={confirmarExclusao} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all">Sim, Excluir</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+            </div>
         );
     }
 
     return (
         <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full">
-            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden mx-auto">
+            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto">
                 
-                {/* Header Status */}
+                {/* Header fixo da loja */}
                 <div className="bg-[#1a191c] flex justify-center items-center py-2.5 border-b border-gray-800 text-xs shadow-md z-20">
                     <span className="text-gray-300 flex items-center">
                         <i className="fas fa-motorcycle text-[#d79e51] mr-2"></i> Delivery: {restaurante.tempo_entrega}
@@ -762,7 +821,7 @@ const App = () => {
 
                 <div className="flex-1 overflow-y-auto pb-24">
                     
-                    {/* Home View */}
+                    {/* View Home */}
                     {view === 'home' && (
                         <div>
                             <div className="relative flex flex-col items-center mb-6">
@@ -771,14 +830,18 @@ const App = () => {
                                     <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80"></div>
                                 </div>
                                 <div className="w-32 h-32 rounded-full border-4 border-[#d79e51] flex flex-col items-center justify-center -mt-16 z-10 bg-[#1f1e22] shadow-xl overflow-hidden relative">
-                                    <h1 className="font-bold text-xl tracking-wider text-white text-center leading-tight z-10 px-2">{restaurante.nome}</h1>
+                                    {restaurante.logo_url ? (
+                                        <img src={restaurante.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <h1 className="font-bold text-xl tracking-wider text-white text-center leading-none z-10 px-2">{restaurante.nome}</h1>
+                                    )}
                                 </div>
                                 <div className="text-center mt-4 w-full px-4">
                                     <h2 className="font-bold text-white text-xl tracking-wider">{restaurante.nome}</h2>
                                     <p className="text-[#d79e51] text-xs tracking-[0.35em] mt-1 uppercase">Cardápio Digital</p>
                                 </div>
                                 <div className="w-full px-6 mt-6 max-w-sm mx-auto">
-                                    <button onClick={fazerPedidoAgora} className="w-full font-bold text-xl py-4 rounded-xl shadow-lg active:scale-95 transition-transform" style={{ background: 'linear-gradient(to right, #d79e51, #e8b776)', color: '#1a191c' }}>
+                                    <button onClick={fazerPedidoAgora} className="w-full font-bold text-xl py-4 rounded-xl active:scale-95 transition-transform" style={{ backgroundColor: '#d79e51', backgroundImage: 'linear-gradient(to right, #d79e51, #e8b776)', color: '#2b2a2d', boxShadow: '0 6px 20px rgba(215,158,81,0.25)' }}>
                                         FAZER PEDIDO AGORA
                                     </button>
                                 </div>
@@ -790,22 +853,25 @@ const App = () => {
                                     {produtos.filter(p => p.is_destaque).map(p => (
                                         <div key={p.id} className="w-[80vw] max-w-[280px] bg-[#363539] rounded-2xl overflow-hidden shadow-lg flex-none border border-gray-700/50 snap-start">
                                             <div className="h-40 relative">
-                                                <img src={p.imagem_url} alt={p.nome} className="w-full h-full object-cover" />
+                                                <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=Foto'} alt={p.nome} className="w-full h-full object-cover" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
                                             </div>
                                             <div className="p-4 relative bg-gradient-to-b from-[#363539] to-[#2c2b2e]">
                                                 <h4 className="font-medium text-lg text-white uppercase truncate">{p.nome}</h4>
-                                                <p className="text-[#d79e51] font-bold text-xl mt-1">R$ {Number(p.preco).toFixed(2).replace('.',',')}</p>
+                                                <p className="text-[#d79e51] font-bold text-xl mt-1">R$ {p.preco.toFixed(2).replace('.',',')}</p>
                                                 <button onClick={() => adicionarAoCarrinho(p)} className="absolute bottom-4 right-4 w-9 h-9 border border-[#d79e51]/50 rounded-full flex items-center justify-center text-[#d79e51] hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors"><i className="fas fa-plus"></i></button>
                                             </div>
                                         </div>
                                     ))}
+                                    {produtos.filter(p => p.is_destaque).length === 0 && !dbLoading && (
+                                        <p className="text-gray-500 text-sm">Nenhum destaque no momento.</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Cardapio View */}
+                    {/* View Cardapio */}
                     {view === 'cardapio' && (
                         <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
@@ -821,8 +887,9 @@ const App = () => {
                             </div>
 
                             <div className="space-y-8">
-                                {categorias.map(cat => {
-                                    const prods = produtos.filter(p => p.categoria_id === cat.id);
+                                {dbLoading && <p className="text-center text-gray-500 py-10"><i className="fas fa-spinner fa-spin mr-2"></i>Carregando cardápio...</p>}
+                                {!dbLoading && categorias.map(cat => {
+                                    const prods = produtos.filter(p => p.categoria_id === cat.id && p.ativo);
                                     if(prods.length === 0) return null;
                                     return (
                                         <div key={cat.id}>
@@ -830,14 +897,14 @@ const App = () => {
                                             <div className="grid grid-cols-1 gap-4">
                                                 {prods.map(p => (
                                                     <div key={p.id} className="bg-[#363539] rounded-2xl p-3 flex shadow border border-gray-700/50 h-full hover:border-[#d79e51]/40 transition-colors">
-                                                        <img src={p.imagem_url} alt={p.nome} className="w-24 h-24 rounded-xl object-cover flex-shrink-0" />
+                                                        <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className="w-24 h-24 rounded-xl object-cover flex-shrink-0" />
                                                         <div className="ml-3 flex flex-col justify-between flex-grow min-w-0">
                                                             <div>
                                                                 <h4 className="text-white text-lg leading-tight truncate">{p.nome}</h4>
                                                                 <p className="text-gray-400 text-[11px] mt-1 line-clamp-2">{p.descricao}</p>
                                                             </div>
                                                             <div className="flex justify-between items-end mt-2">
-                                                                <span className="text-[#d79e51] font-bold text-lg">R$ {Number(p.preco).toFixed(2).replace('.',',')}</span>
+                                                                <span className="text-[#d79e51] font-bold text-lg">R$ {p.preco.toFixed(2).replace('.',',')}</span>
                                                                 <button onClick={() => adicionarAoCarrinho(p)} className="w-8 h-8 border border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors"><i className="fas fa-plus"></i></button>
                                                             </div>
                                                         </div>
@@ -851,7 +918,7 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* Carrinho View */}
+                    {/* View Carrinho */}
                     {view === 'carrinho' && (
                         <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
@@ -876,7 +943,7 @@ const App = () => {
                                                 </div>
                                                 <input type="text" placeholder="Observação (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.id, e.target.value)} className="w-full bg-[#1a191c] text-xs text-gray-300 border border-gray-700 rounded mb-3 px-2 py-1 outline-none focus:border-[#d79e51]" />
                                                 <div className="flex justify-between items-center">
-                                                    <span className="text-xs text-gray-400">R$ {Number(item.preco).toFixed(2).replace('.', ',')} un</span>
+                                                    <span className="text-xs text-gray-400">R$ {item.preco.toFixed(2).replace('.', ',')} un</span>
                                                     <div className="flex items-center space-x-3 bg-[#1a191c] rounded-lg px-2 py-1">
                                                         <button onClick={() => alterarQuantidade(item.id, -1)} className="text-[#d79e51] w-6 h-6 flex justify-center items-center font-bold text-lg">-</button>
                                                         <span className="text-white font-bold w-4 text-center">{item.quantidade}</span>
@@ -938,7 +1005,7 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* Pedidos View */}
+                    {/* View Pedidos */}
                     {view === 'pedidos' && (
                         <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
@@ -956,13 +1023,18 @@ const App = () => {
                             ) : (
                                 <div className="grid grid-cols-1 gap-4">
                                     {meusPedidos.map(p => {
-                                        const info = JSON.parse(p.itens || '{}');
+                                        let info = {};
+                                        if (typeof p.itens === 'string') {
+                                            try { info = JSON.parse(p.itens); } catch(e) {}
+                                        } else {
+                                            info = p.itens || {};
+                                        }
                                         return (
                                             <div key={p.id} className="bg-[#363539] rounded-xl p-4 border border-gray-700">
                                                 <div className="flex justify-between items-start mb-2 border-b border-gray-700/50 pb-2">
                                                     <div>
                                                         <h4 className="font-medium text-white text-sm">Pedido #{p.id.substring(0,6).toUpperCase()}</h4>
-                                                        <span className="text-[10px] text-gray-500">{new Date(p.created_at || new Date()).toLocaleString('pt-BR')}</span>
+                                                        <span className="text-[10px] text-gray-500">{new Date(p.created_at).toLocaleString('pt-BR')}</span>
                                                     </div>
                                                     <span className="text-[#d79e51] font-bold text-sm">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
                                                 </div>
@@ -981,7 +1053,7 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* Perfil View */}
+                    {/* View Perfil e Admin Login */}
                     {view === 'perfil' && (
                         <div className="pt-10 flex flex-col items-center min-h-[60vh] px-4">
                             <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
@@ -1021,7 +1093,6 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* Admin Login View */}
                     {view === 'admin-login' && (
                         <div className="pt-10 flex flex-col items-center px-6 min-h-[60vh]">
                             <h2 className="font-bold text-2xl text-[#d79e51] uppercase tracking-wider text-center mb-2">Acesso Restrito</h2>
@@ -1044,7 +1115,7 @@ const App = () => {
                     )}
                 </div>
 
-                {/* Bottom Navigation */}
+                {/* Navbar Inferior */}
                 <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
                     <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
                         <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
