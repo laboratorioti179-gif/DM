@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+// Define Supabase connection details
+const SUPABASE_URL = 'https://vzcrfnyfiqsfrwswlvyf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6Y3JmbnlmaXFzZnJ3c3dsdnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMTQ1NjksImV4cCI6MjA5NDc5MDU2OX0.es2duCl9cJQjSH787kCxtUbl-UqqcwedvKF5lf-uc7s';
 
 const App = () => {
     const [view, setView] = useState('home');
@@ -40,10 +43,96 @@ const App = () => {
     const [mapaAberto, setMapaAberto] = useState(false);
     const mapRef = useRef(null);
     const [redirectPosLogin, setRedirectPosLogin] = useState(null);
+    const [supabase, setSupabase] = useState(null);
 
-    const carregarPedidosAdminLocal = () => {
-        const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
-        setPedidosAdmin(pedSalvos);
+    useEffect(() => {
+        // Load Tailwind CSS dynamically
+        if (!document.getElementById('tailwind-cdn')) {
+            const script = document.createElement('script');
+            script.id = 'tailwind-cdn';
+            script.src = 'https://cdn.tailwindcss.com';
+            document.head.appendChild(script);
+            
+            const fa = document.createElement('link');
+            fa.rel = 'stylesheet';
+            fa.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+            document.head.appendChild(fa);
+            
+            const leafletCss = document.createElement('link');
+            leafletCss.rel = 'stylesheet';
+            leafletCss.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(leafletCss);
+
+            const leafletJs = document.createElement('script');
+            leafletJs.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            document.head.appendChild(leafletJs);
+        }
+
+        // Initialize Supabase using dynamic import to avoid module resolution errors
+        import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm')
+            .then(({ createClient }) => {
+                const sbClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                setSupabase(sbClient);
+                carregarDadosSupabase(sbClient);
+            })
+            .catch(err => console.error("Error loading Supabase:", err));
+
+        // Load local storage data
+        const nome = localStorage.getItem('cliente_nome');
+        const cel = localStorage.getItem('cliente_celular');
+        if (nome && cel) {
+            setClienteAuth(true);
+            setClienteDados({ nome, celular: cel });
+            carregarMeusPedidos(cel);
+        }
+        
+        if (localStorage.getItem('isAdminBypass') === 'true') {
+            setIsAdmin(true);
+            carregarPedidosAdminLocal();
+        }
+    }, []);
+
+    const carregarDadosSupabase = async (client) => {
+        try {
+            // Fetch Products
+            const { data: produtosData, error: produtosError } = await client.from('produtos').select('*');
+            if (produtosData && produtosData.length > 0) {
+                setProdutos(produtosData);
+            } else if (produtosError) {
+                console.error("Erro ao carregar produtos:", produtosError);
+            }
+
+            // Fetch Categories
+            const { data: categoriasData, error: categoriasError } = await client.from('categorias').select('*').order('ordem', { ascending: true });
+            if (categoriasData && categoriasData.length > 0) {
+                setCategorias(categoriasData);
+            } else if (categoriasError) {
+                console.error("Erro ao carregar categorias:", categoriasError);
+            }
+
+             // Fetch Restaurant Config
+             const { data: restData, error: restError } = await client.from('restaurante').select('*').limit(1);
+             if (restData && restData.length > 0) {
+                 setRestaurante(restData[0]);
+             } else if (restError) {
+                 console.error("Erro ao carregar configurações do restaurante:", restError);
+             }
+
+        } catch (error) {
+            console.error("Erro geral ao conectar com Supabase:", error);
+        }
+    };
+
+    const carregarPedidosAdminLocal = async () => {
+        if (supabase) {
+            const { data, error } = await supabase.from('pedidos').select('*').order('created_at', { ascending: false });
+            if (data) {
+                setPedidosAdmin(data);
+            }
+        } else {
+            const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
+            setPedidosAdmin(pedSalvos);
+        }
     };
 
     const fazerPedidoAgora = () => {
@@ -87,11 +176,20 @@ const App = () => {
         }
     };
 
-    const salvarPerfil = () => {
+    const salvarPerfil = async () => {
         if (!clienteDados.nome || !clienteDados.celular) {
             alert('Preencha nome e celular.');
             return;
         }
+        
+        if (supabase) {
+             // Upsert client data to Supabase
+             await supabase.from('clientes').upsert({
+                 celular: clienteDados.celular,
+                 nome: clienteDados.nome
+             });
+        }
+
         localStorage.setItem('cliente_nome', clienteDados.nome);
         localStorage.setItem('cliente_celular', clienteDados.celular);
         setClienteAuth(true);
@@ -105,45 +203,16 @@ const App = () => {
         }
     };
 
-    useEffect(() => {
-        if (!document.getElementById('tailwind-cdn')) {
-            const script = document.createElement('script');
-            script.id = 'tailwind-cdn';
-            script.src = 'https://cdn.tailwindcss.com';
-            document.head.appendChild(script);
-            
-            const fa = document.createElement('link');
-            fa.rel = 'stylesheet';
-            fa.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-            document.head.appendChild(fa);
-            
-            const leafletCss = document.createElement('link');
-            leafletCss.rel = 'stylesheet';
-            leafletCss.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            document.head.appendChild(leafletCss);
-
-            const leafletJs = document.createElement('script');
-            leafletJs.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            document.head.appendChild(leafletJs);
+    const carregarMeusPedidos = async (celular) => {
+        if (supabase) {
+             const { data, error } = await supabase.from('pedidos').select('*').eq('cliente_celular', celular).order('created_at', { ascending: false });
+             if (data) {
+                 setMeusPedidos(data);
+             }
+        } else {
+            const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
+            setMeusPedidos(pedSalvos.filter(p => p.cliente_celular === celular));
         }
-
-        const nome = localStorage.getItem('cliente_nome');
-        const cel = localStorage.getItem('cliente_celular');
-        if (nome && cel) {
-            setClienteAuth(true);
-            setClienteDados({ nome, celular: cel });
-            carregarMeusPedidos(cel);
-        }
-        
-        if (localStorage.getItem('isAdminBypass') === 'true') {
-            setIsAdmin(true);
-            carregarPedidosAdminLocal();
-        }
-    }, []);
-
-    const carregarMeusPedidos = (celular) => {
-        const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
-        setMeusPedidos(pedSalvos.filter(p => p.cliente_celular === celular));
     };
 
     const loginAdminForm = (e) => {
@@ -170,8 +239,12 @@ const App = () => {
         setModalConfirmacaoAberto({ aberto: true, id: id });
     };
 
-    const confirmarExclusao = () => {
+    const confirmarExclusao = async () => {
         if (modalConfirmacaoAberto.id) {
+            if (supabase) {
+                 const { error } = await supabase.from('produtos').delete().eq('id', modalConfirmacaoAberto.id);
+                 if (error) console.error("Erro ao excluir produto no Supabase:", error);
+            }
             setProdutos(produtos.filter(p => p.id !== modalConfirmacaoAberto.id));
         }
         setModalConfirmacaoAberto({ aberto: false, id: null });
@@ -181,8 +254,13 @@ const App = () => {
         setModalConfirmacaoAberto({ aberto: false, id: null });
     };
 
-    const toggleStatusLoja = () => {
-        setRestaurante({ ...restaurante, is_aberto: !restaurante.is_aberto });
+    const toggleStatusLoja = async () => {
+        const novoStatus = !restaurante.is_aberto;
+        setRestaurante({ ...restaurante, is_aberto: novoStatus });
+        
+        if (supabase && restaurante.id) {
+             await supabase.from('restaurante').update({ is_aberto: novoStatus }).eq('id', restaurante.id);
+        }
     };
 
     useEffect(() => {
@@ -208,7 +286,7 @@ const App = () => {
         }
     }, [view, checkoutForm.tipo]);
 
-    const finalizarPedido = () => {
+    const finalizarPedido = async () => {
         if (!restaurante.is_aberto) {
             alert("A loja está fechada no momento.");
             return;
@@ -230,12 +308,17 @@ const App = () => {
                 referencia: checkoutForm.referencia,
                 pagamento: checkoutForm.pagamento,
                 troco: checkoutForm.troco
-            }),
-            created_at: new Date().toISOString()
+            })
         };
 
+        if (supabase) {
+             const { error } = await supabase.from('pedidos').insert([novoPedido]);
+             if (error) console.error("Erro ao salvar pedido no Supabase:", error);
+        }
+
+        // Keep local storage for fallback/speed
         const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
-        pedSalvos.push(novoPedido);
+        pedSalvos.push({...novoPedido, created_at: new Date().toISOString()});
         localStorage.setItem('pedidos_mock', JSON.stringify(pedSalvos));
         
         setCarrinho([]);
@@ -244,11 +327,15 @@ const App = () => {
         alert("Pedido enviado com sucesso!");
     };
 
-    const moverPedidoStatus = (id, novoStatus) => {
+    const moverPedidoStatus = async (id, novoStatus) => {
         const pedSalvos = JSON.parse(localStorage.getItem('pedidos_mock') || '[]');
         const atualizados = pedSalvos.map(p => p.id === id ? { ...p, status: novoStatus } : p);
         localStorage.setItem('pedidos_mock', JSON.stringify(atualizados));
         setPedidosAdmin(atualizados);
+        
+        if (supabase) {
+            await supabase.from('pedidos').update({ status: novoStatus }).eq('id', id);
+        }
     };
 
     const imprimirNota = (pedido) => {
@@ -257,7 +344,7 @@ const App = () => {
             `${l.quantidade}x ${l.nome} ${l.observacao ? `(Obs: ${l.observacao})` : ''} - R$ ${(l.quantidade * l.preco).toFixed(2).replace('.',',')}`
         ).join('<br/>') : '';
 
-        const d = new Date(pedido.created_at);
+        const d = new Date(pedido.created_at || new Date());
         const dataFormat = d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR');
 
         const win = window.open('', '_blank', 'width=350,height=600');
@@ -297,11 +384,19 @@ const App = () => {
         }
     };
     
-    const handleSaveProduto = () => {
+    const handleSaveProduto = async () => {
         if(produtoEditando.id) {
              setProdutos(produtos.map(p => p.id === produtoEditando.id ? produtoEditando : p));
+             if (supabase) {
+                 await supabase.from('produtos').update(produtoEditando).eq('id', produtoEditando.id);
+             }
         } else {
-             setProdutos([...produtos, { ...produtoEditando, id: Math.random().toString(36).substring(2, 9) }]);
+             const newId = Math.random().toString(36).substring(2, 9);
+             const novoProduto = { ...produtoEditando, id: newId };
+             setProdutos([...produtos, novoProduto]);
+             if (supabase) {
+                 await supabase.from('produtos').insert([novoProduto]);
+             }
         }
         setModalProdutoAberto(false);
     }
@@ -373,7 +468,7 @@ const App = () => {
                     </header>
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
-                        {}
+                        {/* Pedidos View */}
                         {adminView === 'pedidos' && (
                             <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 lg:gap-6 h-full items-start">
                                 {['novo', 'preparo', 'pronto', 'finalizado'].map(status => (
@@ -423,7 +518,7 @@ const App = () => {
                             </div>
                         )}
 
-                        {}
+                        {/* Cardapio View */}
                         {adminView === 'cardapio' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
                                 {produtos.map(p => {
@@ -448,7 +543,7 @@ const App = () => {
                             </div>
                         )}
 
-                        {}
+                        {/* Configs View */}
                         {adminView === 'configs' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -507,7 +602,7 @@ const App = () => {
                     </main>
                 </div>
                 
-                {}
+                {/* Product Modal */}
                 {modalProdutoAberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                         <div className="bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
@@ -550,12 +645,16 @@ const App = () => {
                                 <div className="flex items-center space-x-6 pt-3 border-t border-gray-800">
                                     <label className="flex items-center space-x-2 cursor-pointer group">
                                         <input type="checkbox" checked={produtoEditando?.ativo ?? true} onChange={(e) => setProdutoEditando({...produtoEditando, ativo: e.target.checked})} className="sr-only peer" />
-                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#d79e51] relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                                        <div className={`w-9 h-5 rounded-full relative transition-colors ${produtoEditando?.ativo !== false ? 'bg-[#d79e51]' : 'bg-gray-700'}`}>
+                                            <div className={`absolute top-[2px] bg-white border-gray-300 border rounded-full h-4 w-4 transition-transform ${produtoEditando?.ativo !== false ? 'left-[2px] translate-x-full border-white' : 'left-[2px]'}`}></div>
+                                        </div>
                                         <span className="text-xs text-gray-300">Em Estoque</span>
                                     </label>
                                     <label className="flex items-center space-x-2 cursor-pointer group">
                                         <input type="checkbox" checked={produtoEditando?.is_destaque ?? false} onChange={(e) => setProdutoEditando({...produtoEditando, is_destaque: e.target.checked})} className="sr-only peer" />
-                                        <div className="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#d79e51] relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                                        <div className={`w-9 h-5 rounded-full relative transition-colors ${produtoEditando?.is_destaque ? 'bg-[#d79e51]' : 'bg-gray-700'}`}>
+                                            <div className={`absolute top-[2px] bg-white border-gray-300 border rounded-full h-4 w-4 transition-transform ${produtoEditando?.is_destaque ? 'left-[2px] translate-x-full border-white' : 'left-[2px]'}`}></div>
+                                        </div>
                                         <span className="text-xs text-gray-300">Destaque</span>
                                     </label>
                                 </div>
@@ -575,7 +674,7 @@ const App = () => {
                     </div>
                 )}
 
-            {/* Modal de Confirmação de Exclusão */}
+            {/* Modal Confirmação Exclusão */}
             {modalConfirmacaoAberto.aberto && (
                 <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-[#242326] border border-red-900/50 rounded-xl w-full max-w-sm flex flex-col shadow-[0_15px_40px_rgba(0,0,0,0.5)] transform animate-fade-in">
@@ -599,9 +698,9 @@ const App = () => {
 
     return (
         <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full">
-            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto">
+            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden mx-auto">
                 
-                {}
+                {/* Header Status */}
                 <div className="bg-[#1a191c] flex justify-center items-center py-2.5 border-b border-gray-800 text-xs shadow-md z-20">
                     <span className="text-gray-300 flex items-center">
                         <i className="fas fa-motorcycle text-[#d79e51] mr-2"></i> Delivery: {restaurante.tempo_entrega}
@@ -614,7 +713,7 @@ const App = () => {
 
                 <div className="flex-1 overflow-y-auto pb-24">
                     
-                    {}
+                    {/* Home View */}
                     {view === 'home' && (
                         <div>
                             <div className="relative flex flex-col items-center mb-6">
@@ -623,7 +722,7 @@ const App = () => {
                                     <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80"></div>
                                 </div>
                                 <div className="w-32 h-32 rounded-full border-4 border-[#d79e51] flex flex-col items-center justify-center -mt-16 z-10 bg-[#1f1e22] shadow-xl overflow-hidden relative">
-                                    <h1 className="font-bold text-xl tracking-wider text-white text-center leading-none z-10 px-2">{restaurante.nome}</h1>
+                                    <h1 className="font-bold text-xl tracking-wider text-white text-center leading-tight z-10 px-2">{restaurante.nome}</h1>
                                 </div>
                                 <div className="text-center mt-4 w-full px-4">
                                     <h2 className="font-bold text-white text-xl tracking-wider">{restaurante.nome}</h2>
@@ -647,7 +746,7 @@ const App = () => {
                                             </div>
                                             <div className="p-4 relative bg-gradient-to-b from-[#363539] to-[#2c2b2e]">
                                                 <h4 className="font-medium text-lg text-white uppercase truncate">{p.nome}</h4>
-                                                <p className="text-[#d79e51] font-bold text-xl mt-1">R$ {p.preco.toFixed(2).replace('.',',')}</p>
+                                                <p className="text-[#d79e51] font-bold text-xl mt-1">R$ {Number(p.preco).toFixed(2).replace('.',',')}</p>
                                                 <button onClick={() => adicionarAoCarrinho(p)} className="absolute bottom-4 right-4 w-9 h-9 border border-[#d79e51]/50 rounded-full flex items-center justify-center text-[#d79e51] hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors"><i className="fas fa-plus"></i></button>
                                             </div>
                                         </div>
@@ -657,7 +756,7 @@ const App = () => {
                         </div>
                     )}
 
-                    {}
+                    {/* Cardapio View */}
                     {view === 'cardapio' && (
                         <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
@@ -689,7 +788,7 @@ const App = () => {
                                                                 <p className="text-gray-400 text-[11px] mt-1 line-clamp-2">{p.descricao}</p>
                                                             </div>
                                                             <div className="flex justify-between items-end mt-2">
-                                                                <span className="text-[#d79e51] font-bold text-lg">R$ {p.preco.toFixed(2).replace('.',',')}</span>
+                                                                <span className="text-[#d79e51] font-bold text-lg">R$ {Number(p.preco).toFixed(2).replace('.',',')}</span>
                                                                 <button onClick={() => adicionarAoCarrinho(p)} className="w-8 h-8 border border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors"><i className="fas fa-plus"></i></button>
                                                             </div>
                                                         </div>
@@ -703,7 +802,7 @@ const App = () => {
                         </div>
                     )}
 
-                    {}
+                    {/* Carrinho View */}
                     {view === 'carrinho' && (
                         <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
@@ -728,7 +827,7 @@ const App = () => {
                                                 </div>
                                                 <input type="text" placeholder="Observação (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.id, e.target.value)} className="w-full bg-[#1a191c] text-xs text-gray-300 border border-gray-700 rounded mb-3 px-2 py-1 outline-none focus:border-[#d79e51]" />
                                                 <div className="flex justify-between items-center">
-                                                    <span className="text-xs text-gray-400">R$ {item.preco.toFixed(2).replace('.', ',')} un</span>
+                                                    <span className="text-xs text-gray-400">R$ {Number(item.preco).toFixed(2).replace('.', ',')} un</span>
                                                     <div className="flex items-center space-x-3 bg-[#1a191c] rounded-lg px-2 py-1">
                                                         <button onClick={() => alterarQuantidade(item.id, -1)} className="text-[#d79e51] w-6 h-6 flex justify-center items-center font-bold text-lg">-</button>
                                                         <span className="text-white font-bold w-4 text-center">{item.quantidade}</span>
@@ -790,7 +889,7 @@ const App = () => {
                         </div>
                     )}
 
-                    {}
+                    {/* Pedidos View */}
                     {view === 'pedidos' && (
                         <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
@@ -814,7 +913,7 @@ const App = () => {
                                                 <div className="flex justify-between items-start mb-2 border-b border-gray-700/50 pb-2">
                                                     <div>
                                                         <h4 className="font-medium text-white text-sm">Pedido #{p.id.substring(0,6).toUpperCase()}</h4>
-                                                        <span className="text-[10px] text-gray-500">{new Date(p.created_at).toLocaleString('pt-BR')}</span>
+                                                        <span className="text-[10px] text-gray-500">{new Date(p.created_at || new Date()).toLocaleString('pt-BR')}</span>
                                                     </div>
                                                     <span className="text-[#d79e51] font-bold text-sm">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
                                                 </div>
@@ -833,7 +932,7 @@ const App = () => {
                         </div>
                     )}
 
-                    {}
+                    {/* Perfil View */}
                     {view === 'perfil' && (
                         <div className="pt-10 flex flex-col items-center min-h-[60vh] px-4">
                             <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
@@ -873,7 +972,7 @@ const App = () => {
                         </div>
                     )}
 
-                    {}
+                    {/* Admin Login View */}
                     {view === 'admin-login' && (
                         <div className="pt-10 flex flex-col items-center px-6 min-h-[60vh]">
                             <h2 className="font-bold text-2xl text-[#d79e51] uppercase tracking-wider text-center mb-2">Acesso Restrito</h2>
@@ -896,7 +995,7 @@ const App = () => {
                     )}
                 </div>
 
-                {}
+                {/* Bottom Navigation */}
                 <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
                     <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
                         <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
