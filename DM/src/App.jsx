@@ -15,12 +15,7 @@ const App = () => {
         logo_url: ''
     });
     
-    const [produtos, setProdutos] = useState([
-        { id: '1', nome: 'Dog Simples', preco: 15.00, descricao: 'Pão, salsicha, batata palha, purê.', categoria_id: 'c1', ativo: true, is_destaque: true, imagem_url: 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?w=400' },
-        { id: '2', nome: 'Dog Duplo', preco: 22.00, descricao: 'Pão, 2 salsichas, muito queijo e purê.', categoria_id: 'c1', ativo: true, is_destaque: true, imagem_url: 'https://images.unsplash.com/photo-1594212691516-7489569ce54b?w=400' },
-        { id: '3', nome: 'Batata Frita', preco: 25.00, descricao: 'Porção inteira de batata frita rústica.', categoria_id: 'c2', ativo: true, is_destaque: false, imagem_url: 'https://images.unsplash.com/photo-1576107232684-1279f390859f?w=400' },
-        { id: '4', nome: 'Coca-Cola Lata', preco: 6.00, descricao: '350ml gelada.', categoria_id: 'c3', ativo: true, is_destaque: false, imagem_url: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400' }
-    ]);
+    const [produtos, setProdutos] = useState([]);
 
     const [categorias, setCategorias] = useState([
         { id: 'c1', nome: 'Cachorros', ordem: 1 },
