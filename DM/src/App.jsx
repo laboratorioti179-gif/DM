@@ -387,17 +387,30 @@ const App = () => {
     };
     
     const handleSaveProduto = async () => {
-        if(produtoEditando.id) {
-             setProdutos(produtos.map(p => p.id === produtoEditando.id ? produtoEditando : p));
+        let produtoFinal = { ...produtoEditando };
+        
+        // Garante que a categoria não vá vazia para o banco (evita erro de foreign key)
+        if (!produtoFinal.categoria_id && categorias.length > 0) {
+            produtoFinal.categoria_id = categorias[0].id;
+        } else if (!produtoFinal.categoria_id) {
+            produtoFinal.categoria_id = null;
+        }
+
+        if(produtoFinal.id) {
+             setProdutos(produtos.map(p => p.id === produtoFinal.id ? produtoFinal : p));
              if (supabase) {
-                 await supabase.from('produtos').update(produtoEditando).eq('id', produtoEditando.id);
+                 // Remove o ID do objeto de atualização para evitar conflitos no banco
+                 const { id, ...dadosUpdate } = produtoFinal;
+                 const { error } = await supabase.from('produtos').update(dadosUpdate).eq('id', id);
+                 if (error) console.error("Erro ao atualizar no Supabase:", error.message);
              }
         } else {
              const newId = Math.random().toString(36).substring(2, 9);
-             const novoProduto = { ...produtoEditando, id: newId };
-             setProdutos([...produtos, novoProduto]);
+             produtoFinal.id = newId;
+             setProdutos([...produtos, produtoFinal]);
              if (supabase) {
-                 await supabase.from('produtos').insert([novoProduto]);
+                 const { error } = await supabase.from('produtos').insert([produtoFinal]);
+                 if (error) console.error("Erro ao inserir no Supabase:", error.message);
              }
         }
         setModalProdutoAberto(false);
