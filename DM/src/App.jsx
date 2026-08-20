@@ -387,33 +387,58 @@ const App = () => {
     };
     
     const handleSaveProduto = async () => {
-        let produtoFinal = { ...produtoEditando };
-        
-        // Garante que a categoria não vá vazia para o banco (evita erro de foreign key)
-        if (!produtoFinal.categoria_id && categorias.length > 0) {
-            produtoFinal.categoria_id = categorias[0].id;
-        } else if (!produtoFinal.categoria_id) {
-            produtoFinal.categoria_id = null;
-        }
+        try {
+            let produtoFinal = { ...produtoEditando };
+            
+            // 1. Validação Obrigatória
+            if (!produtoFinal.nome || produtoFinal.preco === '' || produtoFinal.preco === 0) {
+                alert("Por favor, preencha o Nome e o Preço do produto!");
+                return;
+            }
 
-        if(produtoFinal.id) {
-             setProdutos(produtos.map(p => p.id === produtoFinal.id ? produtoFinal : p));
-             if (supabase) {
-                 // Remove o ID do objeto de atualização para evitar conflitos no banco
+            // 2. Tratamento de Categoria Vazia
+            if (!produtoFinal.categoria_id && categorias.length > 0) {
+                produtoFinal.categoria_id = categorias[0].id;
+            } else if (!produtoFinal.categoria_id) {
+                produtoFinal.categoria_id = null;
+            }
+
+            // 3. Validação de Tamanho de Imagem (Evita Erro 413 do Supabase)
+            if (produtoFinal.imagem_url && produtoFinal.imagem_url.length > 2000000) {
+                alert("A imagem selecionada é muito grande! (Máximo de ~2MB). Escolha uma foto mais leve, reduza a resolução e tente novamente.");
+                return;
+            }
+
+            if (!supabase) {
+                alert("Falha de conexão com o banco de dados Supabase. Verifique a internet e recarregue a página.");
+                return;
+            }
+
+            if(produtoFinal.id) {
                  const { id, ...dadosUpdate } = produtoFinal;
+                 
+                 // Atualiza no banco
                  const { error } = await supabase.from('produtos').update(dadosUpdate).eq('id', id);
-                 if (error) console.error("Erro ao atualizar no Supabase:", error.message);
-             }
-        } else {
-             const newId = Math.random().toString(36).substring(2, 9);
-             produtoFinal.id = newId;
-             setProdutos([...produtos, produtoFinal]);
-             if (supabase) {
-                 const { error } = await supabase.from('produtos').insert([produtoFinal]);
-                 if (error) console.error("Erro ao inserir no Supabase:", error.message);
-             }
+                 if (error) throw error;
+                 
+                 setProdutos(produtos.map(p => p.id === produtoFinal.id ? produtoFinal : p));
+            } else {
+                 const newId = Math.random().toString(36).substring(2, 9);
+                 produtoFinal.id = newId;
+                 
+                 // Insere no banco com .select() para evitar falhas silenciosas
+                 const { error } = await supabase.from('produtos').insert([produtoFinal]).select();
+                 if (error) throw error;
+                 
+                 setProdutos([...produtos, produtoFinal]);
+            }
+            
+            setModalProdutoAberto(false);
+            
+        } catch (err) {
+            console.error("ERRO COMPLETO DO BANCO:", err);
+            alert("ERRO AO SALVAR NO BANCO DE DADOS:\n\n" + (err.message || JSON.stringify(err)));
         }
-        setModalProdutoAberto(false);
     }
 
     const totalCarrinho = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
