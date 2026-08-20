@@ -63,14 +63,20 @@ const App = () => {
             document.head.appendChild(leafletJs);
         }
 
-        // Initialize Supabase using dynamic import to avoid module resolution errors
-        import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm')
-            .then(({ createClient }) => {
-                const sbClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Initialize Supabase via script tag for maximum compatibility and avoid fetch/CORS errors
+        if (!document.getElementById('supabase-script')) {
+            const sbScript = document.createElement('script');
+            sbScript.id = 'supabase-script';
+            sbScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+            sbScript.onload = () => {
+                const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                    auth: { persistSession: false }
+                });
                 setSupabase(sbClient);
                 carregarDadosSupabase(sbClient);
-            })
-            .catch(err => console.error("Error loading Supabase:", err));
+            };
+            document.head.appendChild(sbScript);
+        }
 
         // Load local storage data
         const nome = localStorage.getItem('cliente_nome');
