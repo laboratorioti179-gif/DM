@@ -10,7 +10,10 @@ const App = () => {
         tempo_entrega: '30-45 min',
         raio_entrega: 5,
         foto_capa_url: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-        logo_url: ''
+        logo_url: '',
+        cep: '',
+        lat: -23.5329,
+        lng: -46.7920
     });
     
     const [produtos, setProdutos] = useState([]);
@@ -31,6 +34,8 @@ const App = () => {
     const [mapaAberto, setMapaAberto] = useState(false);
     const mapRef = useRef(null);
     const [redirectPosLogin, setRedirectPosLogin] = useState(null);
+    const [cepLojaBuscando, setCepLojaBuscando] = useState(false);
+    const [erroCepLoja, setErroCepLoja] = useState('');
     
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
@@ -41,6 +46,40 @@ const App = () => {
         const dLon = (lon2 - lon1) * (Math.PI / 180);
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    const buscarCepLoja = async (cepInput) => {
+        const cepLimpo = cepInput.replace(/\D/g, '');
+        if (cepLimpo.length !== 8) return;
+        setCepLojaBuscando(true);
+        setErroCepLoja('');
+        try {
+            const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+            const data = await res.json();
+            if (data.erro) {
+                setErroCepLoja('CEP não encontrado.');
+                setCepLojaBuscando(false);
+                return;
+            }
+            
+            const q = `${data.logradouro}, ${data.localidade}, ${data.uf}, Brasil`;
+            const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+            const geoData = await geoRes.json();
+            
+            if (geoData && geoData.length > 0) {
+                setRestaurante(prev => ({
+                    ...prev,
+                    cep: cepInput,
+                    lat: parseFloat(geoData[0].lat),
+                    lng: parseFloat(geoData[0].lon)
+                }));
+            } else {
+                 setErroCepLoja('Não foi possível obter a localização exata no mapa.');
+            }
+        } catch (err) {
+            setErroCepLoja('Erro ao buscar CEP.');
+        }
+        setCepLojaBuscando(false);
     };
 
     const buscarCep = async (cepInput) => {
@@ -67,8 +106,8 @@ const App = () => {
                 lat = parseFloat(geoData[0].lat);
                 lng = parseFloat(geoData[0].lon);
                 
-                const lojaLat = -23.5329; // Coordenadas fixas da loja (como no mapa)
-                const lojaLng = -46.7920;
+                const lojaLat = restaurante.lat || -23.5329;
+                const lojaLng = restaurante.lng || -46.7920;
                 const dist = calcularDistancia(lojaLat, lojaLng, lat, lng);
                 
                 if (dist > (restaurante.raio_entrega || 5)) {
@@ -363,8 +402,12 @@ const App = () => {
         try {
             const { error } = await supabase.from('restaurante').update({
                 tempo_entrega: restaurante.tempo_entrega,
+                raio_entrega: restaurante.raio_entrega,
                 foto_capa_url: restaurante.foto_capa_url,
-                logo_url: restaurante.logo_url
+                logo_url: restaurante.logo_url,
+                cep: restaurante.cep,
+                lat: restaurante.lat,
+                lng: restaurante.lng
             }).eq('id', restaurante.id);
             
             if (error) throw error;
@@ -379,8 +422,8 @@ const App = () => {
         if (view === 'carrinho' && checkoutForm.tipo === 'entrega' && !mapRef.current && window.L) {
             setTimeout(() => {
                 try {
-                    const lojaLat = -23.5329;
-                    const lojaLng = -46.7920;
+                    const lojaLat = restaurante.lat || -23.5329;
+                    const lojaLng = restaurante.lng || -46.7920;
                     const raioMeters = (restaurante.raio_entrega || 5) * 1000;
 
                     const map = window.L.map('mapa-raio-container', { zoomControl: false, attributionControl: false }).setView([lojaLat, lojaLng], 13);
@@ -734,6 +777,12 @@ const App = () => {
                                             </label>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">CEP da Loja (Origem)</label>
+                                                <input type="text" value={restaurante.cep || ''} onBlur={(e) => buscarCepLoja(e.target.value)} onChange={(e) => setRestaurante({...restaurante, cep: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="Ex: 01001-000" />
+                                                {cepLojaBuscando && <p className="text-[10px] text-gray-400 mt-1"><i className="fas fa-spinner fa-spin"></i> Buscando coordenadas...</p>}
+                                                {erroCepLoja && <p className="text-[10px] text-red-400 mt-1 font-bold">{erroCepLoja}</p>}
+                                            </div>
                                             <div>
                                                 <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Tempo Delivery (Ex: 30-45 min)</label>
                                                 <input type="text" value={restaurante.tempo_entrega} onChange={(e) => setRestaurante({...restaurante, tempo_entrega: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
