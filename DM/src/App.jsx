@@ -49,6 +49,7 @@ const App = () => {
     const [filtroData, setFiltroData] = useState('');
     
     const [promoForm, setPromoForm] = useState({ titulo: '', mensagem: '', webhookUrl: '' });
+    const [webhookEditavel, setWebhookEditavel] = useState(true);
     
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
@@ -1275,7 +1276,18 @@ const App = () => {
                                     <div className="p-5 space-y-5">
                                         <div>
                                             <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Webhook URL (N8N) *</label>
-                                            <input type="text" value={promoForm.webhookUrl} onChange={(e) => setPromoForm({...promoForm, webhookUrl: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="https://seu-n8n.com/webhook/..." />
+                                            <div className="flex gap-2">
+                                                <input type="text" value={promoForm.webhookUrl} readOnly={!webhookEditavel} onChange={(e) => setPromoForm({...promoForm, webhookUrl: e.target.value})} className={`w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm ${!webhookEditavel ? 'opacity-50 cursor-not-allowed' : ''}`} placeholder="https://seu-n8n.com/webhook/..." />
+                                                {webhookEditavel ? (
+                                                    <button onClick={() => setWebhookEditavel(false)} className="px-4 py-2 bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] rounded-lg font-bold text-xs shadow-md transition-all whitespace-nowrap">
+                                                        Confirmar
+                                                    </button>
+                                                ) : (
+                                                    <button onClick={() => { if(window.confirm("Deseja realmente editar a URL do Webhook?")) setWebhookEditavel(true); }} className="px-4 py-2 bg-[#363539] hover:bg-gray-700 text-white rounded-lg font-bold text-xs shadow-md transition-all whitespace-nowrap border border-gray-600">
+                                                        Editar
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Título da Promoção *</label>
