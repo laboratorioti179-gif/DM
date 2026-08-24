@@ -54,6 +54,11 @@ const App = () => {
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
 
+    // Definição do padrão SVG para o fundo (Silhuetas de Hotdog e Copo)
+    const patternSvg = {
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23d79e51' fill-opacity='0.06' fill-rule='evenodd'%3E%3Cpath d='M11 15h6v12h-6zM9 19h10v4H9zM10 31h8c1.1 0 2 .9 2 2v20c0 1.1-.9 2-2 2h-8c-1.1 0-2-.9-2-2V33c0-1.1.9-2 2-2zm1 3v18h6V34h-6zM51 15h6v12h-6zM49 19h10v4H49zM50 31h8c1.1 0 2 .9 2 2v20c0 1.1-.9 2-2 2h-8c-1.1 0-2-.9-2-2V33c0-1.1.9-2 2-2zm1 3v18h6V34h-6z'/%3E%3C/g%3E%3C/svg%3E")`
+    };
+
     const calcularDistancia = (lat1, lon1, lat2, lon2) => {
         const R = 6371;
         const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -450,6 +455,12 @@ const App = () => {
         if (localStorage.getItem('isAdminBypass') === 'true') {
             setIsAdmin(true);
         }
+        
+        const savedWebhook = localStorage.getItem('n8n_webhook_url');
+        if (savedWebhook) {
+            setPromoForm(prev => ({ ...prev, webhookUrl: savedWebhook }));
+            setWebhookEditavel(false);
+        }
     }, []);
 
     useEffect(() => {
@@ -496,7 +507,6 @@ const App = () => {
 
         carregarDados();
 
-        // Evita a inicialização do WebSocket caso esteja rodando em um Iframe/Canvas restrito
         const isInIframe = () => {
             try { return window.self !== window.top; }
             catch (e) { return true; }
@@ -504,7 +514,6 @@ const App = () => {
 
         let channel = null;
 
-        // Só tenta ligar o Realtime (WebSocket) se NÃO estiver no modo de visualização do Canvas
         if (!isInIframe()) {
              channel = supabase.channel('realtime-cardapio')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'produtos' }, () => carregarDados())
@@ -516,7 +525,6 @@ const App = () => {
              console.warn('Realtime desabilitado para o ambiente de preview. O app funcionará estaticamente.');
         }
 
-        // Limpa o canal caso o componente seja desmontado e o canal exista
         return () => {
             if (channel) {
                 try { supabase.removeChannel(channel); } catch (e) {}
@@ -839,7 +847,7 @@ const App = () => {
 
     if (isAdmin) {
         return (
-            <div className="fixed inset-0 bg-[#1a191c] flex w-full h-full text-white font-sans overflow-hidden z-50">
+            <div className="fixed inset-0 bg-[#1a191c] flex w-full h-full text-white font-sans overflow-hidden z-50" style={patternSvg}>
                 <div className={`absolute md:relative z-[60] w-64 bg-[#242326] border-r border-gray-800 flex flex-col h-full transform ${adminMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 flex-shrink-0`}>
                     <div className="p-5 flex items-center justify-between border-b border-gray-800">
                         <h2 className="font-bold text-xl text-[#d79e51] uppercase tracking-wider">Gestão</h2>
@@ -896,8 +904,8 @@ const App = () => {
 
                 {adminMenuOpen && <div onClick={() => setAdminMenuOpen(false)} className="fixed inset-0 bg-black/60 z-[55] md:hidden backdrop-blur-sm transition-opacity"></div>}
 
-                <div className="flex-1 flex flex-col overflow-hidden relative bg-[#1a191c] w-full">
-                    <header className="bg-[#1f1e22] border-b border-gray-800 p-4 flex justify-between items-center z-10 flex-shrink-0">
+                <div className="flex-1 flex flex-col overflow-hidden relative w-full" style={patternSvg}>
+                    <header className="bg-[#1f1e22]/90 backdrop-blur-md border-b border-gray-800 p-4 flex justify-between items-center z-10 flex-shrink-0">
                         <div className="flex items-center">
                             <button onClick={() => setAdminMenuOpen(true)} className="md:hidden text-gray-400 hover:text-white mr-4 transition-colors">
                                 <i className="fas fa-bars text-xl"></i>
@@ -920,13 +928,11 @@ const App = () => {
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
                         
-                        {/* Area de Pedidos */}
-                        {}
                         {adminView === 'pedidos' && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 h-full items-start">
                                 {['novo', 'preparo', 'pronto'].map(status => (
-                                    <div key={status} className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col max-h-[80vh] shadow-sm">
-                                        <div className="p-3.5 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center sticky top-0 z-10">
+                                    <div key={status} className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 flex flex-col max-h-[80vh] shadow-sm">
+                                        <div className="p-3.5 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl flex justify-between items-center sticky top-0 z-10">
                                             <h4 className="text-white font-medium tracking-wide uppercase text-sm">{status === 'novo' ? 'Novos Pedidos' : status === 'preparo' ? 'Em Preparo' : 'Prontos / Entrega'}</h4>
                                         </div>
                                         <div className="p-3 overflow-y-auto space-y-3 hide-scrollbar flex-1 min-h-[150px]">
@@ -976,14 +982,12 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Area do Cardapio */}
-                        {}
                         {adminView === 'cardapio' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
                                 {produtos.map(p => {
                                     const cName = categorias.find(c => c.id === p.categoria_id)?.nome || 'Sem Categoria';
                                     return (
-                                    <div key={p.id} className="bg-[#1f1e22] border border-gray-800 rounded-xl overflow-hidden shadow-md">
+                                    <div key={p.id} className="bg-[#1f1e22]/90 backdrop-blur-md border border-gray-800 rounded-xl overflow-hidden shadow-md">
                                         <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className={`w-full h-28 object-cover ${!p.ativo ? 'grayscale opacity-50' : ''}`} />
                                         <div className="p-4">
                                             <p className="text-[9px] text-gray-400 uppercase tracking-widest">{cName}</p>
@@ -1002,12 +1006,10 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Area de Configs */}
-                        {}
                         {adminView === 'configs' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2">
-                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Operação da Loja</h4>
                                     </div>
                                     <div className="p-5 space-y-5">
@@ -1044,8 +1046,8 @@ const App = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col shadow-sm mt-6">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 flex flex-col shadow-sm mt-6">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Design do Aplicativo</h4>
                                     </div>
                                     <div className="p-5">
@@ -1080,12 +1082,10 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Area Nova Loja */}
-                        {}
                         {adminView === 'nova_loja' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2">
-                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Cadastrar Nova Unidade</h4>
                                     </div>
                                     <div className="p-5 space-y-5">
@@ -1113,12 +1113,10 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Area Financeiro */}
-                        {}
                         {adminView === 'financeiro' && (
                             <div className="max-w-4xl mx-auto space-y-6 pt-2">
-                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Registrar Movimentação</h4>
                                     </div>
                                     <div className="p-5 space-y-4">
@@ -1154,8 +1152,8 @@ const App = () => {
                                     </div>
                                 </div>
                                 
-                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center">
+                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl flex justify-between items-center">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Receita por Produto (Pedidos Finalizados)</h4>
                                         <div className="text-sm font-bold text-[#d79e51]">
                                             Vendas: R$ {totalPedidosFinalizados.toFixed(2).replace('.', ',')}
@@ -1212,14 +1210,14 @@ const App = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center">
+                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl flex justify-between items-center">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Histórico e Saldo</h4>
                                         <div className="text-sm font-bold text-gray-300">
                                             Saldo Geral: <span className={saldoGeral >= 0 ? 'text-green-400 ml-1' : 'text-red-400 ml-1'}>R$ {saldoGeral.toFixed(2).replace('.', ',')}</span>
                                         </div>
                                     </div>
-                                    <div className="p-4 border-b border-gray-800 bg-[#1a191c] flex flex-col md:flex-row gap-4 items-end">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1a191c]/90 flex flex-col md:flex-row gap-4 items-end">
                                         <div className="flex-1 w-full">
                                             <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Filtrar por Loja</label>
                                             <select value={filtroLoja} onChange={(e) => setFiltroLoja(e.target.value)} className="w-full bg-[#242326] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-xs">
@@ -1247,7 +1245,7 @@ const App = () => {
                                             </thead>
                                             <tbody className="divide-y divide-gray-800 text-sm">
                                                 {historicoFiltrado.map(item => (
-                                                    <tr key={item.id} className="hover:bg-[#1f1e22] transition-colors">
+                                                    <tr key={item.id} className="hover:bg-[#1f1e22]/50 transition-colors">
                                                         <td className="px-4 py-3 text-gray-400 text-xs">{item.data ? new Date(item.data).toLocaleDateString('pt-BR') : '--'}</td>
                                                         <td className="px-4 py-3 text-gray-400 text-xs">{item.loja}</td>
                                                         <td className="px-4 py-3 text-white text-xs">{item.descricao}</td>
@@ -1268,12 +1266,10 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Area de Promocoes */}
-                        {}
                         {adminView === 'promocoes' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2">
-                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Disparo de Promoção via N8N</h4>
                                     </div>
                                     <div className="p-5 space-y-5">
@@ -1282,7 +1278,7 @@ const App = () => {
                                             <div className="flex gap-2">
                                                 <input type="text" value={promoForm.webhookUrl} readOnly={!webhookEditavel} onChange={(e) => setPromoForm({...promoForm, webhookUrl: e.target.value})} className={`w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm ${!webhookEditavel ? 'opacity-50 cursor-not-allowed' : ''}`} placeholder="https://seu-n8n.com/webhook/..." />
                                                 {webhookEditavel ? (
-                                                    <button onClick={() => setWebhookEditavel(false)} className="px-4 py-2 bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] rounded-lg font-bold text-xs shadow-md transition-all whitespace-nowrap">
+                                                    <button onClick={() => { setWebhookEditavel(false); localStorage.setItem('n8n_webhook_url', promoForm.webhookUrl); }} className="px-4 py-2 bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] rounded-lg font-bold text-xs shadow-md transition-all whitespace-nowrap">
                                                         Confirmar
                                                     </button>
                                                 ) : (
@@ -1312,8 +1308,6 @@ const App = () => {
                     </main>
                 </div>
                 
-                {}
-                {/* Modal Produto */}
                 {modalProdutoAberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                         <div className="bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
@@ -1385,7 +1379,6 @@ const App = () => {
                     </div>
                 )}
 
-                {/* Modal Confirmacao */}
                 {modalConfirmacaoAberto.aberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                         <div className="bg-[#242326] border border-red-900/50 rounded-xl w-full max-w-sm flex flex-col shadow-[0_15px_40px_rgba(0,0,0,0.5)] transform animate-fade-in">
@@ -1408,11 +1401,10 @@ const App = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full">
-            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto">
+        <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full" style={patternSvg}>
+            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d]/95 backdrop-blur-md relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto" style={patternSvg}>
                 
-                {/* Header fixo da loja */}
-                <div className="bg-[#1a191c] flex flex-col justify-center items-center py-2 border-b border-gray-800 text-xs shadow-md z-20">
+                <div className="bg-[#1a191c]/90 backdrop-blur-md flex flex-col justify-center items-center py-2 border-b border-gray-800 text-xs shadow-md z-20">
                     {lojas.length > 1 && (
                         <button onClick={() => setView('selecionar_loja')} className="text-white font-bold mb-1.5 flex items-center hover:text-[#d79e51] transition-colors">
                             {restaurante.nome} <i className="fas fa-chevron-down ml-1.5 text-[10px]"></i>
@@ -1431,7 +1423,6 @@ const App = () => {
 
                 <div className="flex-1 overflow-y-auto pb-24">
                     
-                    {/* View Selecionar Loja */}
                     {view === 'selecionar_loja' && (
                         <div className="pt-10 px-6 flex flex-col items-center min-h-[60vh]">
                             <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-6">Selecione a Loja</h2>
@@ -1454,7 +1445,6 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* View Home */}
                     {view === 'home' && (
                         <div>
                             <div className="relative flex flex-col items-center mb-6">
@@ -1504,10 +1494,9 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* View Cardapio */}
                     {view === 'cardapio' && (
                         <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
+                            <div className="sticky top-0 bg-[#2b2a2d]/90 backdrop-blur-md z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Nosso Cardápio</h2>
                             </div>
                             
@@ -1529,7 +1518,7 @@ const App = () => {
                                             <h3 className="text-xl text-[#d79e51] mb-4 border-b border-gray-700/50 pb-2 uppercase">{cat.nome}</h3>
                                             <div className="grid grid-cols-1 gap-4">
                                                 {prods.map(p => (
-                                                    <div key={p.id} className="bg-[#363539] rounded-2xl p-3 flex shadow border border-gray-700/50 h-full hover:border-[#d79e51]/40 transition-colors">
+                                                    <div key={p.id} className="bg-[#363539]/90 backdrop-blur-md rounded-2xl p-3 flex shadow border border-gray-700/50 h-full hover:border-[#d79e51]/40 transition-colors">
                                                         <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className="w-24 h-24 rounded-xl object-cover flex-shrink-0" />
                                                         <div className="ml-3 flex flex-col justify-between flex-grow min-w-0">
                                                             <div>
@@ -1551,11 +1540,9 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* View Carrinho */}
-                    {}
                     {view === 'carrinho' && (
                         <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
+                            <div className="sticky top-0 bg-[#2b2a2d]/90 backdrop-blur-md z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Seu Pedido</h2>
                             </div>
 
@@ -1648,11 +1635,9 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* View Pedidos */}
-                    {}
                     {view === 'pedidos' && (
                         <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
+                            <div className="sticky top-0 bg-[#2b2a2d]/90 backdrop-blur-md z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Meus Pedidos</h2>
                             </div>
                             
@@ -1697,8 +1682,6 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* View Perfil e Admin Login */}
-                    {}
                     {view === 'perfil' && (
                         <div className="pt-10 flex flex-col items-center min-h-[60vh] px-4">
                             <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
@@ -1762,7 +1745,7 @@ const App = () => {
                     {view === 'admin-login' && (
                         <div className="pt-10 flex flex-col items-center px-6 min-h-[60vh]">
                             <h2 className="font-bold text-2xl text-[#d79e51] uppercase tracking-wider text-center mb-2">Acesso Restrito</h2>
-                            <p className="text-gray-400 text-sm text-center mb-8">Área exclusiva para gestão.</p>
+                            <p className="test-gray-400 text-sm text-center mb-8">Área exclusiva para gestão.</p>
                             <form onSubmit={loginAdminForm} className="w-full max-w-sm space-y-4">
                                 <div>
                                     <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase tracking-wider">E-mail</label>
@@ -1781,8 +1764,6 @@ const App = () => {
                     )}
                 </div>
 
-                {/* Navbar Inferior */}
-                {}
                 <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
                     <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
                         <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
