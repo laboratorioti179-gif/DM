@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const App = () => {
     const [view, setView] = useState('home');
@@ -1034,33 +1033,51 @@ const App = () => {
                                             Vendas: R$ {totalPedidosFinalizados.toFixed(2).replace('.', ',')}
                                         </div>
                                     </div>
-                                    <div className="p-5 h-64 w-full">
+                                    <div className="p-5 h-64 w-full flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-8">
                                         {dadosGraficoPizza.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <PieChart>
-                                                    <Pie
-                                                        data={dadosGraficoPizza}
-                                                        cx="50%"
-                                                        cy="50%"
-                                                        innerRadius={60}
-                                                        outerRadius={80}
-                                                        paddingAngle={5}
-                                                        dataKey="value"
-                                                    >
-                                                        {dadosGraficoPizza.map((entry, index) => (
-                                                            <Cell key={`cell-${index}`} fill={CORES_GRAFICO[index % CORES_GRAFICO.length]} />
-                                                        ))}
-                                                    </Pie>
-                                                    <Tooltip 
-                                                        formatter={(value) => `R$ ${value.toFixed(2).replace('.', ',')}`}
-                                                        contentStyle={{ backgroundColor: '#1a191c', borderColor: '#363539', color: '#fff', borderRadius: '8px' }}
-                                                        itemStyle={{ color: '#d79e51' }}
-                                                    />
-                                                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '12px', color: '#ccc' }}/>
-                                                </PieChart>
-                                            </ResponsiveContainer>
+                                            <>
+                                                <div className="relative w-40 h-40 flex-shrink-0">
+                                                    <svg viewBox="0 0 42 42" className="w-full h-full transform -rotate-90">
+                                                        <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#363539" strokeWidth="6"></circle>
+                                                        {(() => {
+                                                            let dashOffset = 0;
+                                                            return dadosGraficoPizza.map((entry, index) => {
+                                                                const percent = totalPedidosFinalizados > 0 ? (entry.value / totalPedidosFinalizados) * 100 : 0;
+                                                                const dashArray = `${percent} ${100 - percent}`;
+                                                                const currentOffset = dashOffset;
+                                                                dashOffset -= percent; 
+                                                                return (
+                                                                    <circle
+                                                                        key={`circle-${index}`}
+                                                                        cx="21"
+                                                                        cy="21"
+                                                                        r="15.91549430918954"
+                                                                        fill="transparent"
+                                                                        stroke={CORES_GRAFICO[index % CORES_GRAFICO.length]}
+                                                                        strokeWidth="6"
+                                                                        strokeDasharray={dashArray}
+                                                                        strokeDashoffset={currentOffset}
+                                                                        className="transition-all duration-1000 ease-out"
+                                                                    ></circle>
+                                                                );
+                                                            });
+                                                        })()}
+                                                    </svg>
+                                                </div>
+                                                <div className="flex-1 w-full overflow-y-auto max-h-48 pr-2 custom-scrollbar">
+                                                    {dadosGraficoPizza.map((entry, index) => (
+                                                        <div key={`legend-${index}`} className="flex justify-between items-center text-xs mb-2">
+                                                            <div className="flex items-center text-gray-300">
+                                                                <div className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: CORES_GRAFICO[index % CORES_GRAFICO.length] }}></div>
+                                                                <span className="truncate max-w-[120px]" title={entry.name}>{entry.name}</span>
+                                                            </div>
+                                                            <span className="text-[#d79e51] font-medium ml-2 whitespace-nowrap">R$ {entry.value.toFixed(2).replace('.', ',')}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </>
                                         ) : (
-                                            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                                            <div className="flex items-center justify-center h-full w-full text-gray-500 text-sm">
                                                 Nenhum pedido finalizado ainda.
                                             </div>
                                         )}
