@@ -494,7 +494,34 @@ const App = () => {
         };
 
         carregarDados();
-    }, [supabase]);
+
+        // Evita a inicialização do WebSocket caso esteja rodando em um Iframe/Canvas restrito
+        const isInIframe = () => {
+            try { return window.self !== window.top; }
+            catch (e) { return true; }
+        };
+
+        let channel = null;
+
+        // Só tenta ligar o Realtime (WebSocket) se NÃO estiver no modo de visualização do Canvas
+        if (!isInIframe()) {
+             channel = supabase.channel('realtime-cardapio')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'produtos' }, () => carregarDados())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'categorias' }, () => carregarDados())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurante' }, () => carregarDados())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => carregarDados())
+                .subscribe();
+        } else {
+             console.warn('Realtime desabilitado para o ambiente de preview. O app funcionará estaticamente.');
+        }
+
+        // Limpa o canal caso o componente seja desmontado e o canal exista
+        return () => {
+            if (channel) {
+                try { supabase.removeChannel(channel); } catch (e) {}
+            }
+        };
+    }, [supabase, isAdmin, clienteAuth, clienteDados.celular]);
 
     const carregarMeusPedidos = (celular) => {
         if (!supabase) return;
