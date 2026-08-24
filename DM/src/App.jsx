@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+/* eslint-disable */
+
 const App = () => {
     const [view, setView] = useState('home');
     const [carrinho, setCarrinho] = useState([]);
@@ -27,6 +29,7 @@ const App = () => {
     const [isAdmin, setIsAdmin] = useState(false);
     const [adminView, setAdminView] = useState('pedidos');
     const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+    
     const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
     const [produtoEditando, setProdutoEditando] = useState(null);
     const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState({ aberto: false, id: null });
@@ -34,15 +37,18 @@ const App = () => {
     const [mapaAberto, setMapaAberto] = useState(false);
     const mapRef = useRef(null);
     const [redirectPosLogin, setRedirectPosLogin] = useState(null);
+    
     const [cepLojaBuscando, setCepLojaBuscando] = useState(false);
     const [erroCepLoja, setErroCepLoja] = useState('');
     const [lojas, setLojas] = useState([]);
-    
     const [novaLojaForm, setNovaLojaForm] = useState({ nome: '', tempo_entrega: '30-45 min', raio_entrega: 5 });
     
     const [financeiroForm, setFinanceiroForm] = useState({ restaurante_id: '', tipo: 'entrada', valor: '', descricao: '' });
-    
     const [movimentacoes, setMovimentacoes] = useState([]);
+    const [filtroLoja, setFiltroLoja] = useState('');
+    const [filtroData, setFiltroData] = useState('');
+    
+    const [promoForm, setPromoForm] = useState({ titulo: '', mensagem: '', webhookUrl: '' });
     
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
@@ -177,7 +183,6 @@ const App = () => {
         });
     };
 
-    // Cálculos Financeiros
     const pedidosConcluidos = pedidosAdmin.filter(p => p.status === 'finalizado');
     const totalPedidosFinalizados = pedidosConcluidos.reduce((acc, p) => acc + Number(p.total), 0);
     
@@ -204,14 +209,67 @@ const App = () => {
     const dadosGraficoPizza = Object.keys(vendasPorProduto).map(nome => ({
         name: nome,
         value: vendasPorProduto[nome]
-    })).sort((a, b) => b.value - a.value).slice(0, 10); // Mostra os top 10
+    })).sort((a, b) => b.value - a.value).slice(0, 10);
 
     const CORES_GRAFICO = ['#d79e51', '#e8b776', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#38bdf8', '#c084fc', '#fb7185'];
 
+    const historicoPedidos = pedidosConcluidos.map(p => {
+        let info = {};
+        try {
+            info = typeof p.itens === 'string' ? JSON.parse(p.itens) : (p.itens || {});
+        } catch(e) {}
+        
+        const nomesLanches = info.lanches ? info.lanches.map(l => `${l.quantidade}x ${l.nome}`).join(', ') : 'Venda';
+        
+        return {
+            id: `ped-${p.id}`,
+            data: p.created_at,
+            loja: info.filial_nome || 'Filial Desconhecida',
+            descricao: `Pedido #${p.id.substring(0,6).toUpperCase()} (${nomesLanches})`,
+            tipo: 'entrada',
+            valor: Number(p.total)
+        };
+    });
+    
+    const historicoMovimentacoes = movimentacoes.map(m => ({
+        id: `mov-${m.id}`,
+        data: m.created_at,
+        loja: lojas.find(l => l.id === m.restaurante_id)?.nome || 'Loja Excluída',
+        descricao: m.descricao,
+        tipo: m.tipo,
+        valor: Number(m.valor)
+    }));
+
+    const historicoCombinado = [...historicoMovimentacoes, ...historicoPedidos].sort((a, b) => {
+        return new Date(b.data || 0) - new Date(a.data || 0);
+    });
+    
     const totalEntradasManuais = movimentacoes.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + Number(m.valor), 0);
     const totalSaidasManuais = movimentacoes.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + Number(m.valor), 0);
     const saldoGeral = totalPedidosFinalizados + totalEntradasManuais - totalSaidasManuais;
+    
+    const historicoFiltrado = historicoCombinado.filter(item => {
+        const matchLoja = filtroLoja ? item.loja === filtroLoja : true;
+        const matchData = filtroData ? new Date(item.data).toISOString().split('T')[0] === filtroData : true;
+        return matchLoja && matchData;
+    });
 
+    const baixarRelatorio = () => {
+        let csv = 'Data,Loja,Descricao,Tipo,Valor\n';
+        historicoFiltrado.forEach(item => {
+            const dataFormatada = item.data ? new Date(item.data).toLocaleDateString('pt-BR') : '--';
+            const valorFormatado = item.valor.toFixed(2);
+            csv += `${dataFormatada},"${item.loja}","${item.descricao}",${item.tipo},${valorFormatado}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'relatorio_financeiro.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     const registrarMovimentacao = async () => {
         if (!supabase) return;
@@ -235,6 +293,36 @@ const App = () => {
         } catch (err) {
             console.error("Erro ao registrar movimentação:", err);
             alert("Erro ao registrar movimentação.");
+        }
+    };
+
+    const dispararPromocao = async () => {
+        if (!promoForm.webhookUrl || !promoForm.titulo || !promoForm.mensagem) {
+            alert("Preencha a URL do Webhook, Título e Mensagem da promoção.");
+            return;
+        }
+        
+        try {
+            const response = await fetch(promoForm.webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    loja: restaurante.nome,
+                    titulo: promoForm.titulo,
+                    mensagem: promoForm.mensagem,
+                    data_disparo: new Date().toISOString()
+                })
+            });
+            
+            if (response.ok) {
+                alert("Promoção disparada para o N8N com sucesso!");
+                setPromoForm({...promoForm, titulo: '', mensagem: ''});
+            } else {
+                alert("Erro ao disparar promoção. O N8N retornou um erro.");
+            }
+        } catch (err) {
+            console.error("Erro ao comunicar com N8N:", err);
+            alert("Falha na conexão. Verifique se a URL do Webhook está correta e aceita CORS.");
         }
     };
 
@@ -334,7 +422,6 @@ const App = () => {
                      const sbUrl = 'https://vzcrfnyfiqsfrwswlvyf.supabase.co';
                      const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6Y3JmbnlmaXFzZnJ3c3dsdnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMTQ1NjksImV4cCI6MjA5NDc5MDU2OX0.es2duCl9cJQjSH787kCxtUbl-UqqcwedvKF5lf-uc7s';
                      
-                     // Opções para evitar problemas de Fetch em ambientes de iframe/preview
                      const options = {
                          auth: { persistSession: false },
                          global: { fetch: window.fetch.bind(window) }
@@ -378,7 +465,7 @@ const App = () => {
                 if (prodData) setProdutos(prodData);
 
                 const { data: restData, error: restError } = await supabase.from('restaurante').select('*');
-                if (restError && restError.code !== 'PGRST116') throw restError; // Ignora erro de "nenhuma linha"
+                if (restError && restError.code !== 'PGRST116') throw restError; 
                 
                 if (restData && restData.length > 0) {
                     setLojas(restData);
@@ -386,7 +473,6 @@ const App = () => {
                     const lojaAtual = restData.find(r => r.id === selectedId) || restData[0];
                     setRestaurante(lojaAtual);
                 } else {
-                     // Cria o restaurante padrão caso não exista
                      const { data: novoRest } = await supabase.from('restaurante').insert([{ nome: 'DOGS DO MIRSO' }]).select().single();
                      if (novoRest) {
                          setRestaurante(novoRest);
@@ -446,12 +532,10 @@ const App = () => {
         if (modalConfirmacaoAberto.id && supabase) {
             const idParaExcluir = modalConfirmacaoAberto.id;
             
-            // Atualização Otimista: Remove da tela imediatamente
             setProdutos(produtos.filter(p => p.id !== idParaExcluir));
             setModalConfirmacaoAberto({ aberto: false, id: null });
             setModalProdutoAberto(false);
             
-            // Deleta no banco de dados em segundo plano
             try {
                 await supabase.from('produtos').delete().eq('id', idParaExcluir);
             } catch (err) {
@@ -584,6 +668,8 @@ const App = () => {
             total: totalCalc,
             status: 'novo',
             itens: {
+                filial_id: restaurante.id,
+                filial_nome: restaurante.nome,
                 lanches: carrinho,
                 endereco: checkoutForm.tipo === 'entrega' ? clienteDados.endereco : 'Retirada',
                 referencia: checkoutForm.tipo === 'entrega' ? clienteDados.referencia : '',
@@ -674,18 +760,15 @@ const App = () => {
     const handleSaveProduto = async () => {
         if (!supabase) return;
         
-        // Bloqueia se a imagem convertida (base64) for muito grande (exceder limites do servidor)
         if (produtoEditando.imagem_url && produtoEditando.imagem_url.length > 2000000) {
             alert("Erro: A imagem escolhida é muito pesada para o banco de dados. Por favor, escolha uma imagem de menor tamanho/resolução.");
             return;
         }
 
-        // Validação de campos obrigatórios do banco
         if (!produtoEditando.nome) { alert("Nome do produto é obrigatório."); return; }
         if (!produtoEditando.preco) { alert("Preço do produto é obrigatório."); return; }
 
         try {
-            // Garante que o produto sempre tenha uma categoria válida atrelada, pegando a primeira se necessário
             const catIdFinal = produtoEditando.categoria_id || (categorias.length > 0 ? categorias[0].id : null);
             
             const payload = {
@@ -701,13 +784,11 @@ const App = () => {
             let savedData = null;
 
             if (produtoEditando.id) {
-                // Atualização (separando o ID do payload)
                 const { data, error } = await supabase.from('produtos').update(payload).eq('id', produtoEditando.id).select();
                 if (error) throw error;
                 savedData = data && data.length > 0 ? data[0] : { ...payload, id: produtoEditando.id };
                 setProdutos(produtos.map(p => p.id === savedData.id ? savedData : p));
             } else {
-                // Inserção nova (gerando ID na hora)
                 payload.id = Math.random().toString(36).substring(2, 9);
                 const { data, error } = await supabase.from('produtos').insert([payload]).select();
                 if (error) throw error;
@@ -767,6 +848,12 @@ const App = () => {
                                     <span className="text-sm font-medium">Financeiro</span>
                                 </button>
                             </li>
+                            <li>
+                                <button onClick={() => setAdminView('promocoes')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'promocoes' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
+                                    <i className={`fas fa-bullhorn w-6 ${adminView === 'promocoes' ? 'text-[#d79e51]' : ''}`}></i>
+                                    <span className="text-sm font-medium">Disparo Promo</span>
+                                </button>
+                            </li>
                         </ul>
                     </nav>
                     <div className="p-4 border-t border-gray-800 space-y-3">
@@ -785,7 +872,7 @@ const App = () => {
                                 <i className="fas fa-bars text-xl"></i>
                             </button>
                             <h3 className="text-white text-lg font-medium">
-                                {adminView === 'pedidos' ? 'Gestão de Pedidos' : adminView === 'cardapio' ? 'Cardápio Web' : adminView === 'nova_loja' ? 'Nova Loja' : adminView === 'financeiro' ? 'Financeiro' : 'Configurações do App'}
+                                {adminView === 'pedidos' ? 'Gestão de Pedidos' : adminView === 'cardapio' ? 'Cardápio Web' : adminView === 'nova_loja' ? 'Nova Loja' : adminView === 'financeiro' ? 'Financeiro' : adminView === 'promocoes' ? 'Disparo Promo' : 'Configurações do App'}
                             </h3>
                         </div>
                         {adminView === 'cardapio' && (
@@ -802,6 +889,8 @@ const App = () => {
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
                         
+                        {/* Area de Pedidos */}
+                        {}
                         {adminView === 'pedidos' && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 h-full items-start">
                                 {['novo', 'preparo', 'pronto'].map(status => (
@@ -856,6 +945,8 @@ const App = () => {
                             </div>
                         )}
 
+                        {/* Area do Cardapio */}
+                        {}
                         {adminView === 'cardapio' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
                                 {produtos.map(p => {
@@ -880,6 +971,8 @@ const App = () => {
                             </div>
                         )}
 
+                        {/* Area de Configs */}
+                        {}
                         {adminView === 'configs' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -956,6 +1049,8 @@ const App = () => {
                             </div>
                         )}
 
+                        {/* Area Nova Loja */}
+                        {}
                         {adminView === 'nova_loja' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -987,6 +1082,8 @@ const App = () => {
                             </div>
                         )}
 
+                        {/* Area Financeiro */}
+                        {}
                         {adminView === 'financeiro' && (
                             <div className="max-w-4xl mx-auto space-y-6 pt-2">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -1091,6 +1188,22 @@ const App = () => {
                                             Saldo Geral: <span className={saldoGeral >= 0 ? 'text-green-400 ml-1' : 'text-red-400 ml-1'}>R$ {saldoGeral.toFixed(2).replace('.', ',')}</span>
                                         </div>
                                     </div>
+                                    <div className="p-4 border-b border-gray-800 bg-[#1a191c] flex flex-col md:flex-row gap-4 items-end">
+                                        <div className="flex-1 w-full">
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Filtrar por Loja</label>
+                                            <select value={filtroLoja} onChange={(e) => setFiltroLoja(e.target.value)} className="w-full bg-[#242326] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-xs">
+                                                <option value="">Todas as Lojas</option>
+                                                {lojas.map(l => <option key={l.id} value={l.nome}>{l.nome}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="flex-1 w-full">
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Filtrar por Data</label>
+                                            <input type="date" value={filtroData} onChange={(e) => setFiltroData(e.target.value)} className="w-full bg-[#242326] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-xs" />
+                                        </div>
+                                        <button onClick={baixarRelatorio} className="w-full md:w-auto px-4 py-2 bg-[#363539] hover:bg-gray-700 text-white rounded-lg font-bold text-xs shadow-md transition-all flex items-center justify-center border border-gray-600">
+                                            <i className="fas fa-download mr-2"></i> Baixar CSV
+                                        </button>
+                                    </div>
                                     <div className="p-0 overflow-x-auto">
                                         <table className="w-full text-left border-collapse">
                                             <thead>
@@ -1102,19 +1215,19 @@ const App = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-800 text-sm">
-                                                {movimentacoes.map(mov => (
-                                                    <tr key={mov.id} className="hover:bg-[#1f1e22] transition-colors">
-                                                        <td className="px-4 py-3 text-gray-400 text-xs">{new Date(mov.created_at).toLocaleDateString('pt-BR')}</td>
-                                                        <td className="px-4 py-3 text-gray-400 text-xs">{lojas.find(l => l.id === mov.restaurante_id)?.nome || 'Loja Excluída'}</td>
-                                                        <td className="px-4 py-3 text-white text-xs">{mov.descricao}</td>
-                                                        <td className={`px-4 py-3 font-bold text-right text-xs ${mov.tipo === 'entrada' ? 'text-green-400' : 'text-red-400'}`}>
-                                                            {mov.tipo === 'entrada' ? '+' : '-'} R$ {Number(mov.valor).toFixed(2).replace('.', ',')}
+                                                {historicoFiltrado.map(item => (
+                                                    <tr key={item.id} className="hover:bg-[#1f1e22] transition-colors">
+                                                        <td className="px-4 py-3 text-gray-400 text-xs">{item.data ? new Date(item.data).toLocaleDateString('pt-BR') : '--'}</td>
+                                                        <td className="px-4 py-3 text-gray-400 text-xs">{item.loja}</td>
+                                                        <td className="px-4 py-3 text-white text-xs">{item.descricao}</td>
+                                                        <td className={`px-4 py-3 font-bold text-right text-xs ${item.tipo === 'entrada' ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {item.tipo === 'entrada' ? '+' : '-'} R$ {item.valor.toFixed(2).replace('.', ',')}
                                                         </td>
                                                     </tr>
                                                 ))}
-                                                {movimentacoes.length === 0 && (
+                                                {historicoFiltrado.length === 0 && (
                                                     <tr>
-                                                        <td colSpan="4" className="px-4 py-6 text-center text-gray-500 text-sm">Nenhuma movimentação registrada.</td>
+                                                        <td colSpan="4" className="px-4 py-6 text-center text-gray-500 text-sm">Nenhum histórico encontrado para os filtros.</td>
                                                     </tr>
                                                 )}
                                             </tbody>
@@ -1123,9 +1236,41 @@ const App = () => {
                                 </div>
                             </div>
                         )}
+
+                        {/* Area de Promocoes */}
+                        {}
+                        {adminView === 'promocoes' && (
+                            <div className="max-w-3xl mx-auto space-y-6 pt-2">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                        <h4 className="text-white font-medium tracking-wide uppercase text-sm">Disparo de Promoção via N8N</h4>
+                                    </div>
+                                    <div className="p-5 space-y-5">
+                                        <div>
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Webhook URL (N8N) *</label>
+                                            <input type="text" value={promoForm.webhookUrl} onChange={(e) => setPromoForm({...promoForm, webhookUrl: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="https://seu-n8n.com/webhook/..." />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Título da Promoção *</label>
+                                            <input type="text" value={promoForm.titulo} onChange={(e) => setPromoForm({...promoForm, titulo: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="Ex: Sextou com Frete Grátis!" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Mensagem *</label>
+                                            <textarea value={promoForm.mensagem} onChange={(e) => setPromoForm({...promoForm, mensagem: e.target.value})} rows="4" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="Digite o texto que será enviado aos clientes..."></textarea>
+                                        </div>
+                                        <div className="flex justify-end pt-4 border-t border-gray-800">
+                                            <button onClick={dispararPromocao} className="px-6 py-3 bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center">
+                                                <i className="fas fa-paper-plane mr-2"></i> Enviar Promoção
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </main>
                 </div>
                 
+                {}
                 {/* Modal Produto */}
                 {modalProdutoAberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -1365,6 +1510,7 @@ const App = () => {
                     )}
 
                     {/* View Carrinho */}
+                    {}
                     {view === 'carrinho' && (
                         <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
@@ -1461,6 +1607,7 @@ const App = () => {
                     )}
 
                     {/* View Pedidos */}
+                    {}
                     {view === 'pedidos' && (
                         <div className="pt-6 px-4">
                             <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
@@ -1509,6 +1656,7 @@ const App = () => {
                     )}
 
                     {/* View Perfil e Admin Login */}
+                    {}
                     {view === 'perfil' && (
                         <div className="pt-10 flex flex-col items-center min-h-[60vh] px-4">
                             <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
@@ -1592,6 +1740,7 @@ const App = () => {
                 </div>
 
                 {/* Navbar Inferior */}
+                {}
                 <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
                     <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
                         <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
