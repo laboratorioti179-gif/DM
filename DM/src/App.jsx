@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const App = () => {
     const [view, setView] = useState('home');
@@ -36,6 +37,13 @@ const App = () => {
     const [redirectPosLogin, setRedirectPosLogin] = useState(null);
     const [cepLojaBuscando, setCepLojaBuscando] = useState(false);
     const [erroCepLoja, setErroCepLoja] = useState('');
+    const [lojas, setLojas] = useState([]);
+    
+    const [novaLojaForm, setNovaLojaForm] = useState({ nome: '', tempo_entrega: '30-45 min', raio_entrega: 5 });
+    
+    const [financeiroForm, setFinanceiroForm] = useState({ restaurante_id: '', tipo: 'entrada', valor: '', descricao: '' });
+    
+    const [movimentacoes, setMovimentacoes] = useState([]);
     
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
@@ -128,11 +136,107 @@ const App = () => {
         setCepBuscando(false);
     };
 
+    const cadastrarNovaLoja = async () => {
+        if (!supabase) return;
+        if (!novaLojaForm.nome) {
+            alert("Preencha o nome da loja.");
+            return;
+        }
+        try {
+            const payload = {
+                nome: novaLojaForm.nome,
+                tempo_entrega: novaLojaForm.tempo_entrega,
+                raio_entrega: novaLojaForm.raio_entrega,
+                is_aberto: true
+            };
+            const { data, error } = await supabase.from('restaurante').insert([payload]).select();
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                setLojas([...lojas, data[0]]);
+                alert("Loja cadastrada com sucesso!");
+                setNovaLojaForm({nome: '', tempo_entrega: '30-45 min', raio_entrega: 5});
+                setAdminView('configs');
+            }
+        } catch (err) {
+            console.error("Erro ao cadastrar loja:", err);
+            alert("Erro ao cadastrar loja.");
+        }
+    };
+
     const carregarPedidosAdminLocal = () => {
         if (!supabase) return;
         supabase.from('pedidos').select('*').order('created_at', { ascending: false }).then(({ data }) => {
             if (data) setPedidosAdmin(data);
         });
+    };
+
+    const carregarMovimentacoes = () => {
+        if (!supabase) return;
+        supabase.from('financeiro').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+            if (data) setMovimentacoes(data);
+        });
+    };
+
+    // Cálculos Financeiros
+    const pedidosConcluidos = pedidosAdmin.filter(p => p.status === 'finalizado');
+    const totalPedidosFinalizados = pedidosConcluidos.reduce((acc, p) => acc + Number(p.total), 0);
+    
+    const vendasPorProduto = {};
+    pedidosConcluidos.forEach(pedido => {
+        let info = {};
+        if (typeof pedido.itens === 'string') {
+            try { info = JSON.parse(pedido.itens); } catch(e) {}
+        } else {
+            info = pedido.itens || {};
+        }
+        if (info.lanches && Array.isArray(info.lanches)) {
+            info.lanches.forEach(lanche => {
+                const totalItem = (lanche.preco || 0) * (lanche.quantidade || 0);
+                if (vendasPorProduto[lanche.nome]) {
+                    vendasPorProduto[lanche.nome] += totalItem;
+                } else {
+                    vendasPorProduto[lanche.nome] = totalItem;
+                }
+            });
+        }
+    });
+
+    const dadosGraficoPizza = Object.keys(vendasPorProduto).map(nome => ({
+        name: nome,
+        value: vendasPorProduto[nome]
+    })).sort((a, b) => b.value - a.value).slice(0, 10); // Mostra os top 10
+
+    const CORES_GRAFICO = ['#d79e51', '#e8b776', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#38bdf8', '#c084fc', '#fb7185'];
+
+    const totalEntradasManuais = movimentacoes.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + Number(m.valor), 0);
+    const totalSaidasManuais = movimentacoes.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + Number(m.valor), 0);
+    const saldoGeral = totalPedidosFinalizados + totalEntradasManuais - totalSaidasManuais;
+
+
+    const registrarMovimentacao = async () => {
+        if (!supabase) return;
+        if (!financeiroForm.restaurante_id || !financeiroForm.valor || !financeiroForm.descricao) {
+            alert("Preencha os campos obrigatórios (Loja, Valor e Descrição).");
+            return;
+        }
+        try {
+            const payload = {
+                restaurante_id: financeiroForm.restaurante_id,
+                tipo: financeiroForm.tipo,
+                valor: parseFloat(financeiroForm.valor),
+                descricao: financeiroForm.descricao
+            };
+            const { error } = await supabase.from('financeiro').insert([payload]);
+            if (error) throw error;
+            
+            alert("Movimentação registrada com sucesso!");
+            setFinanceiroForm({ ...financeiroForm, valor: '', descricao: '' });
+            carregarMovimentacoes();
+        } catch (err) {
+            console.error("Erro ao registrar movimentação:", err);
+            alert("Erro ao registrar movimentação.");
+        }
     };
 
     const fazerPedidoAgora = () => {
@@ -274,18 +378,27 @@ const App = () => {
                 if (prodError) throw prodError;
                 if (prodData) setProdutos(prodData);
 
-                const { data: restData, error: restError } = await supabase.from('restaurante').select('*').limit(1).single();
+                const { data: restData, error: restError } = await supabase.from('restaurante').select('*');
                 if (restError && restError.code !== 'PGRST116') throw restError; // Ignora erro de "nenhuma linha"
                 
-                if (restData) {
-                    setRestaurante(restData);
+                if (restData && restData.length > 0) {
+                    setLojas(restData);
+                    const selectedId = localStorage.getItem('loja_selecionada');
+                    const lojaAtual = restData.find(r => r.id === selectedId) || restData[0];
+                    setRestaurante(lojaAtual);
                 } else {
                      // Cria o restaurante padrão caso não exista
                      const { data: novoRest } = await supabase.from('restaurante').insert([{ nome: 'DOGS DO MIRSO' }]).select().single();
-                     if (novoRest) setRestaurante(novoRest);
+                     if (novoRest) {
+                         setRestaurante(novoRest);
+                         setLojas([novoRest]);
+                     }
                 }
                 
-                if (isAdmin) carregarPedidosAdminLocal();
+                if (isAdmin) {
+                    carregarPedidosAdminLocal();
+                    carregarMovimentacoes();
+                }
                 if (clienteAuth) carregarMeusPedidos(clienteDados.celular);
 
             } catch (err) {
@@ -314,6 +427,7 @@ const App = () => {
             localStorage.setItem('isAdminBypass', 'true');
             setIsAdmin(true);
             carregarPedidosAdminLocal();
+            carregarMovimentacoes();
         } else {
             alert("Credenciais Inválidas");
         }
@@ -642,6 +756,18 @@ const App = () => {
                                     <span className="text-sm font-medium">Configurações</span>
                                 </button>
                             </li>
+                            <li>
+                                <button onClick={() => setAdminView('nova_loja')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'nova_loja' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
+                                    <i className={`fas fa-store w-6 ${adminView === 'nova_loja' ? 'text-[#d79e51]' : ''}`}></i>
+                                    <span className="text-sm font-medium">Nova Loja</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button onClick={() => setAdminView('financeiro')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'financeiro' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
+                                    <i className={`fas fa-dollar-sign w-6 ${adminView === 'financeiro' ? 'text-[#d79e51]' : ''}`}></i>
+                                    <span className="text-sm font-medium">Financeiro</span>
+                                </button>
+                            </li>
                         </ul>
                     </nav>
                     <div className="p-4 border-t border-gray-800 space-y-3">
@@ -660,7 +786,7 @@ const App = () => {
                                 <i className="fas fa-bars text-xl"></i>
                             </button>
                             <h3 className="text-white text-lg font-medium">
-                                {adminView === 'pedidos' ? 'Gestão de Pedidos' : adminView === 'cardapio' ? 'Cardápio Web' : 'Configurações do App'}
+                                {adminView === 'pedidos' ? 'Gestão de Pedidos' : adminView === 'cardapio' ? 'Cardápio Web' : adminView === 'nova_loja' ? 'Nova Loja' : adminView === 'financeiro' ? 'Financeiro' : 'Configurações do App'}
                             </h3>
                         </div>
                         {adminView === 'cardapio' && (
@@ -678,14 +804,14 @@ const App = () => {
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
                         
                         {adminView === 'pedidos' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 lg:gap-6 h-full items-start">
-                                {['novo', 'preparo', 'pronto', 'finalizado'].map(status => (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 h-full items-start">
+                                {['novo', 'preparo', 'pronto'].map(status => (
                                     <div key={status} className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col max-h-[80vh] shadow-sm">
                                         <div className="p-3.5 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center sticky top-0 z-10">
-                                            <h4 className="text-white font-medium tracking-wide uppercase text-sm">{status === 'novo' ? 'Novos Pedidos' : status === 'preparo' ? 'Em Preparo' : status === 'pronto' ? 'Prontos / Entrega' : 'Finalizados'}</h4>
+                                            <h4 className="text-white font-medium tracking-wide uppercase text-sm">{status === 'novo' ? 'Novos Pedidos' : status === 'preparo' ? 'Em Preparo' : 'Prontos / Entrega'}</h4>
                                         </div>
                                         <div className="p-3 overflow-y-auto space-y-3 hide-scrollbar flex-1 min-h-[150px]">
-                                            {pedidosAdmin.filter(p => p.status === status || (status === 'finalizado' && p.status === 'rejeitado')).map(p => {
+                                            {pedidosAdmin.filter(p => p.status === status).map(p => {
                                                 let info = {};
                                                 if (typeof p.itens === 'string') {
                                                     try { info = JSON.parse(p.itens); } catch(e) {}
@@ -722,7 +848,7 @@ const App = () => {
                                                     </div>
                                                 )
                                             })}
-                                            {pedidosAdmin.filter(p => p.status === status || (status === 'finalizado' && p.status === 'rejeitado')).length === 0 && (
+                                            {pedidosAdmin.filter(p => p.status === status).length === 0 && (
                                                 <div className="text-gray-500 text-center text-sm mt-4">Vazio</div>
                                             )}
                                         </div>
@@ -830,6 +956,156 @@ const App = () => {
                                 </div>
                             </div>
                         )}
+
+                        {adminView === 'nova_loja' && (
+                            <div className="max-w-3xl mx-auto space-y-6 pt-2">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                        <h4 className="text-white font-medium tracking-wide uppercase text-sm">Cadastrar Nova Unidade</h4>
+                                    </div>
+                                    <div className="p-5 space-y-5">
+                                        <div>
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Nome da Loja / Franquia *</label>
+                                            <input type="text" value={novaLojaForm.nome} onChange={(e) => setNovaLojaForm({...novaLojaForm, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="Ex: Dogs do Mirso - Centro" />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Tempo Delivery Inicial</label>
+                                                <input type="text" value={novaLojaForm.tempo_entrega} onChange={(e) => setNovaLojaForm({...novaLojaForm, tempo_entrega: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Raio Máximo Padrão (KM)</label>
+                                                <input type="number" value={novaLojaForm.raio_entrega} onChange={(e) => setNovaLojaForm({...novaLojaForm, raio_entrega: Number(e.target.value)})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end pt-4">
+                                            <button onClick={cadastrarNovaLoja} className="px-6 py-3 bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center">
+                                                <i className="fas fa-plus mr-2"></i> Cadastrar Loja
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {adminView === 'financeiro' && (
+                            <div className="max-w-4xl mx-auto space-y-6 pt-2">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
+                                        <h4 className="text-white font-medium tracking-wide uppercase text-sm">Registrar Movimentação</h4>
+                                    </div>
+                                    <div className="p-5 space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Loja *</label>
+                                                <select value={financeiroForm.restaurante_id} onChange={(e) => setFinanceiroForm({...financeiroForm, restaurante_id: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm">
+                                                    <option value="">Selecione...</option>
+                                                    {lojas.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Tipo *</label>
+                                                <select value={financeiroForm.tipo} onChange={(e) => setFinanceiroForm({...financeiroForm, tipo: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm">
+                                                    <option value="entrada">Entrada (+)</option>
+                                                    <option value="saida">Saída (-)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Valor (R$) *</label>
+                                                <input type="number" step="0.01" value={financeiroForm.valor} onChange={(e) => setFinanceiroForm({...financeiroForm, valor: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="0.00" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Descrição *</label>
+                                                <input type="text" value={financeiroForm.descricao} onChange={(e) => setFinanceiroForm({...financeiroForm, descricao: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="Ex: Conta de Luz, Venda Extra..." />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end pt-2">
+                                            <button onClick={registrarMovimentacao} className="px-6 py-2 bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] rounded-xl font-bold shadow-md active:scale-95 transition-all">
+                                                Registrar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center">
+                                        <h4 className="text-white font-medium tracking-wide uppercase text-sm">Receita por Produto (Pedidos Finalizados)</h4>
+                                        <div className="text-sm font-bold text-[#d79e51]">
+                                            Vendas: R$ {totalPedidosFinalizados.toFixed(2).replace('.', ',')}
+                                        </div>
+                                    </div>
+                                    <div className="p-5 h-64 w-full">
+                                        {dadosGraficoPizza.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={dadosGraficoPizza}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={60}
+                                                        outerRadius={80}
+                                                        paddingAngle={5}
+                                                        dataKey="value"
+                                                    >
+                                                        {dadosGraficoPizza.map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={CORES_GRAFICO[index % CORES_GRAFICO.length]} />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip 
+                                                        formatter={(value) => `R$ ${value.toFixed(2).replace('.', ',')}`}
+                                                        contentStyle={{ backgroundColor: '#1a191c', borderColor: '#363539', color: '#fff', borderRadius: '8px' }}
+                                                        itemStyle={{ color: '#d79e51' }}
+                                                    />
+                                                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '12px', color: '#ccc' }}/>
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                                                Nenhum pedido finalizado ainda.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center">
+                                        <h4 className="text-white font-medium tracking-wide uppercase text-sm">Histórico e Saldo</h4>
+                                        <div className="text-sm font-bold text-gray-300">
+                                            Saldo Geral: <span className={saldoGeral >= 0 ? 'text-green-400 ml-1' : 'text-red-400 ml-1'}>R$ {saldoGeral.toFixed(2).replace('.', ',')}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-0 overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-[#1a191c] text-gray-400 text-[10px] uppercase tracking-wider border-b border-gray-800">
+                                                    <th className="px-4 py-3 font-bold">Data</th>
+                                                    <th className="px-4 py-3 font-bold">Loja</th>
+                                                    <th className="px-4 py-3 font-bold">Descrição</th>
+                                                    <th className="px-4 py-3 font-bold text-right">Valor</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-800 text-sm">
+                                                {movimentacoes.map(mov => (
+                                                    <tr key={mov.id} className="hover:bg-[#1f1e22] transition-colors">
+                                                        <td className="px-4 py-3 text-gray-400 text-xs">{new Date(mov.created_at).toLocaleDateString('pt-BR')}</td>
+                                                        <td className="px-4 py-3 text-gray-400 text-xs">{lojas.find(l => l.id === mov.restaurante_id)?.nome || 'Loja Excluída'}</td>
+                                                        <td className="px-4 py-3 text-white text-xs">{mov.descricao}</td>
+                                                        <td className={`px-4 py-3 font-bold text-right text-xs ${mov.tipo === 'entrada' ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {mov.tipo === 'entrada' ? '+' : '-'} R$ {Number(mov.valor).toFixed(2).replace('.', ',')}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {movimentacoes.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="4" className="px-4 py-6 text-center text-gray-500 text-sm">Nenhuma movimentação registrada.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </main>
                 </div>
                 
@@ -932,18 +1208,48 @@ const App = () => {
             <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto">
                 
                 {/* Header fixo da loja */}
-                <div className="bg-[#1a191c] flex justify-center items-center py-2.5 border-b border-gray-800 text-xs shadow-md z-20">
-                    <span className="text-gray-300 flex items-center">
-                        <i className="fas fa-motorcycle text-[#d79e51] mr-2"></i> Delivery: {restaurante.tempo_entrega}
-                    </span>
-                    <span className="mx-3 text-gray-600">|</span>
-                    <span className={`font-medium ${restaurante.is_aberto ? 'text-[#d79e51]' : 'text-red-500'}`}>
-                        {restaurante.is_aberto ? 'Aberto' : 'Fechado'}
-                    </span>
+                <div className="bg-[#1a191c] flex flex-col justify-center items-center py-2 border-b border-gray-800 text-xs shadow-md z-20">
+                    {lojas.length > 1 && (
+                        <button onClick={() => setView('selecionar_loja')} className="text-white font-bold mb-1.5 flex items-center hover:text-[#d79e51] transition-colors">
+                            {restaurante.nome} <i className="fas fa-chevron-down ml-1.5 text-[10px]"></i>
+                        </button>
+                    )}
+                    <div className="flex justify-center items-center">
+                        <span className="text-gray-300 flex items-center">
+                            <i className="fas fa-motorcycle text-[#d79e51] mr-2"></i> Delivery: {restaurante.tempo_entrega}
+                        </span>
+                        <span className="mx-3 text-gray-600">|</span>
+                        <span className={`font-medium ${restaurante.is_aberto ? 'text-[#d79e51]' : 'text-red-500'}`}>
+                            {restaurante.is_aberto ? 'Aberto' : 'Fechado'}
+                        </span>
+                    </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto pb-24">
                     
+                    {/* View Selecionar Loja */}
+                    {view === 'selecionar_loja' && (
+                        <div className="pt-10 px-6 flex flex-col items-center min-h-[60vh]">
+                            <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-6">Selecione a Loja</h2>
+                            <p className="text-gray-400 text-sm text-center mb-8">Escolha de qual unidade você deseja pedir hoje.</p>
+                            <div className="w-full space-y-4">
+                                {lojas.map(loja => (
+                                    <button key={loja.id} onClick={() => {
+                                        setRestaurante(loja);
+                                        localStorage.setItem('loja_selecionada', loja.id);
+                                        setView('home');
+                                    }} className="w-full bg-[#1f1e22] border border-gray-700 hover:border-[#d79e51] p-5 rounded-xl flex items-center justify-between transition-colors shadow-sm">
+                                        <div className="flex flex-col text-left">
+                                            <span className="text-white font-bold text-lg">{loja.nome}</span>
+                                            {loja.cep && <span className="text-gray-400 text-[11px] mt-1">CEP Ref: {loja.cep}</span>}
+                                        </div>
+                                        <i className="fas fa-chevron-right text-[#d79e51] text-lg"></i>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* View Home */}
                     {view === 'home' && (
                         <div>
