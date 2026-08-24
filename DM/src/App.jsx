@@ -786,7 +786,10 @@ const App = () => {
     };
     
     const handleSaveProduto = async () => {
-        if (!supabase) return;
+        if (!supabase) {
+            alert("Aguarde a conexão com o banco de dados. (Se persistir, recarregue a página)");
+            return;
+        }
         
         if (produtoEditando.imagem_url && produtoEditando.imagem_url.length > 2000000) {
             alert("Erro: A imagem escolhida é muito pesada para o banco de dados. Por favor, escolha uma imagem de menor tamanho/resolução.");
