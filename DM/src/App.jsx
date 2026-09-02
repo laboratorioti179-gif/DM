@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 /* eslint-disable */
 
 const App = () => {
-    const [view, setView] = useState('home');
+    const [view, setView] = useState('selecionar_loja');
     const [carrinho, setCarrinho] = useState([]);
     const [restaurante, setRestaurante] = useState({
         id: null,
@@ -29,6 +29,7 @@ const App = () => {
     const [isAdmin, setIsAdmin] = useState(false);
     const [adminView, setAdminView] = useState('pedidos');
     const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+    const [adminEmail, setAdminEmail] = useState('');
     
     const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
     const [produtoEditando, setProdutoEditando] = useState(null);
@@ -54,10 +55,14 @@ const App = () => {
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
 
-    // Definição do padrão SVG para o fundo (Silhuetas de Hotdog e Copo)
-    const patternSvg = {
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23d79e51' fill-opacity='0.06' fill-rule='evenodd'%3E%3Cpath d='M11 15h6v12h-6zM9 19h10v4H9zM10 31h8c1.1 0 2 .9 2 2v20c0 1.1-.9 2-2 2h-8c-1.1 0-2-.9-2-2V33c0-1.1.9-2 2-2zm1 3v18h6V34h-6zM51 15h6v12h-6zM49 19h10v4H49zM50 31h8c1.1 0 2 .9 2 2v20c0 1.1-.9 2-2 2h-8c-1.1 0-2-.9-2-2V33c0-1.1.9-2 2-2zm1 3v18h6V34h-6z'/%3E%3C/g%3E%3C/svg%3E")`
-    };
+    const isMatriz = adminEmail === 'dogsdomirso.ls@outlook.com';
+    const isFranquia2 = adminEmail === 'dogsdomirso.ls2@outlook.com';
+    
+    const lojaMatriz = lojas.length > 0 ? lojas[0] : null;
+    const lojaFranquia = lojas.length > 1 ? lojas[1] : (lojas.length > 0 ? lojas[0] : null);
+    
+    const adminLojaAtual = isFranquia2 ? lojaFranquia : lojaMatriz;
+    const idAdminLogado = adminLojaAtual ? adminLojaAtual.id : null;
 
     const calcularDistancia = (lat1, lon1, lat2, lon2) => {
         const R = 6371;
@@ -189,7 +194,14 @@ const App = () => {
         });
     };
 
-    const pedidosConcluidos = pedidosAdmin.filter(p => p.status === 'finalizado');
+    const pedidosAdminFiltrados = pedidosAdmin.filter(p => {
+        if (!isAdmin || !idAdminLogado) return true;
+        let info = {};
+        try { info = typeof p.itens === 'string' ? JSON.parse(p.itens) : (p.itens || {}); } catch(e) {}
+        return info.filial_id === idAdminLogado;
+    });
+
+    const pedidosConcluidos = pedidosAdminFiltrados.filter(p => p.status === 'finalizado');
     const totalPedidosFinalizados = pedidosConcluidos.reduce((acc, p) => acc + Number(p.total), 0);
     
     const vendasPorProduto = {};
@@ -237,7 +249,12 @@ const App = () => {
         };
     });
     
-    const historicoMovimentacoes = movimentacoes.map(m => ({
+    const movimentacoesFiltradas = movimentacoes.filter(m => {
+        if (!isAdmin || !idAdminLogado) return true;
+        return m.restaurante_id === idAdminLogado;
+    });
+
+    const historicoMovimentacoes = movimentacoesFiltradas.map(m => ({
         id: `mov-${m.id}`,
         data: m.created_at,
         loja: lojas.find(l => l.id === m.restaurante_id)?.nome || 'Loja Excluída',
@@ -250,8 +267,8 @@ const App = () => {
         return new Date(b.data || 0) - new Date(a.data || 0);
     });
     
-    const totalEntradasManuais = movimentacoes.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + Number(m.valor), 0);
-    const totalSaidasManuais = movimentacoes.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + Number(m.valor), 0);
+    const totalEntradasManuais = movimentacoesFiltradas.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + Number(m.valor), 0);
+    const totalSaidasManuais = movimentacoesFiltradas.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + Number(m.valor), 0);
     const saldoGeral = totalPedidosFinalizados + totalEntradasManuais - totalSaidasManuais;
     
     const historicoFiltrado = historicoCombinado.filter(item => {
@@ -437,6 +454,17 @@ const App = () => {
                      setSupabase(sbClient);
                 };
                 document.head.appendChild(sbScript);
+            } else if (!supabase) {
+                 const sbUrl = 'https://vzcrfnyfiqsfrwswlvyf.supabase.co';
+                 const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6Y3JmbnlmaXFzZnJ3c3dsdnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMTQ1NjksImV4cCI6MjA5NDc5MDU2OX0.es2duCl9cJQjSH787kCxtUbl-UqqcwedvKF5lf-uc7s';
+                 
+                 const options = {
+                     auth: { persistSession: false },
+                     global: { fetch: window.fetch.bind(window) }
+                 };
+                 
+                 const sbClient = window.supabase.createClient(sbUrl, sbKey, options);
+                 setSupabase(sbClient);
             }
         };
         initScripts();
@@ -454,6 +482,8 @@ const App = () => {
         
         if (localStorage.getItem('isAdminBypass') === 'true') {
             setIsAdmin(true);
+            const savedEmail = localStorage.getItem('adminEmail');
+            if (savedEmail) setAdminEmail(savedEmail);
         }
         
         const savedWebhook = localStorage.getItem('n8n_webhook_url');
@@ -476,14 +506,22 @@ const App = () => {
                 if (prodError) throw prodError;
                 if (prodData) setProdutos(prodData);
 
-                const { data: restData, error: restError } = await supabase.from('restaurante').select('*');
+                const { data: restData, error: restError } = await supabase.from('restaurante').select('*').order('created_at', { ascending: true });
                 if (restError && restError.code !== 'PGRST116') throw restError; 
                 
                 if (restData && restData.length > 0) {
                     setLojas(restData);
-                    const selectedId = localStorage.getItem('loja_selecionada');
-                    const lojaAtual = restData.find(r => r.id === selectedId) || restData[0];
-                    setRestaurante(lojaAtual);
+                    
+                    if (isAdmin) {
+                        const emailAtivo = adminEmail || localStorage.getItem('adminEmail');
+                        const adminEhFranquia = emailAtivo === 'dogsdomirso.ls2@outlook.com';
+                        const lojaGestor = adminEhFranquia ? (restData.length > 1 ? restData[1] : restData[0]) : restData[0];
+                        setRestaurante(lojaGestor);
+                    } else {
+                        const selectedId = localStorage.getItem('loja_selecionada');
+                        const lojaAtual = restData.find(r => r.id === selectedId) || restData[0];
+                        setRestaurante(lojaAtual);
+                    }
                 } else {
                      const { data: novoRest } = await supabase.from('restaurante').insert([{ nome: 'DOGS DO MIRSO' }]).select().single();
                      if (novoRest) {
@@ -522,7 +560,7 @@ const App = () => {
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => carregarDados())
                 .subscribe();
         } else {
-             console.warn('Realtime desabilitado para o ambiente de preview. O app funcionará estaticamente.');
+             console.warn('Realtime desabilitado para o ambiente de preview.');
         }
 
         return () => {
@@ -530,7 +568,7 @@ const App = () => {
                 try { supabase.removeChannel(channel); } catch (e) {}
             }
         };
-    }, [supabase, isAdmin, clienteAuth, clienteDados.celular]);
+    }, [supabase, isAdmin, clienteAuth, clienteDados.celular, adminEmail]);
 
     const carregarMeusPedidos = (celular) => {
         if (!supabase) return;
@@ -546,6 +584,15 @@ const App = () => {
         
         if(email === 'dogsdomirso.ls@outlook.com' && senha === 'K1nder$202525') {
             localStorage.setItem('isAdminBypass', 'true');
+            localStorage.setItem('adminEmail', email);
+            setAdminEmail(email);
+            setIsAdmin(true);
+            carregarPedidosAdminLocal();
+            carregarMovimentacoes();
+        } else if(email === 'dogsdomirso.ls2@outlook.com' && senha === 'Dogs2@2026') {
+            localStorage.setItem('isAdminBypass', 'true');
+            localStorage.setItem('adminEmail', email);
+            setAdminEmail(email);
             setIsAdmin(true);
             carregarPedidosAdminLocal();
             carregarMovimentacoes();
@@ -556,6 +603,8 @@ const App = () => {
 
     const sairAdmin = () => {
         localStorage.removeItem('isAdminBypass');
+        localStorage.removeItem('adminEmail');
+        setAdminEmail('');
         setIsAdmin(false);
         setView('home');
     };
@@ -623,6 +672,11 @@ const App = () => {
             return;
         }
         
+        if (!restaurante.nome) {
+            alert("O nome da franquia não pode estar vazio.");
+            return;
+        }
+        
         if (restaurante.foto_capa_url && restaurante.foto_capa_url.length > 2000000) {
             alert("A foto de capa é muito grande! Escolha uma imagem mais leve.");
             return;
@@ -634,6 +688,7 @@ const App = () => {
 
         try {
             const { error } = await supabase.from('restaurante').update({
+                nome: restaurante.nome,
                 tempo_entrega: restaurante.tempo_entrega,
                 raio_entrega: restaurante.raio_entrega,
                 foto_capa_url: restaurante.foto_capa_url,
@@ -817,7 +872,8 @@ const App = () => {
                 categoria_id: catIdFinal,
                 ativo: produtoEditando.ativo,
                 is_destaque: produtoEditando.is_destaque,
-                imagem_url: produtoEditando.imagem_url || ''
+                imagem_url: produtoEditando.imagem_url || '',
+                restaurante_id: idAdminLogado
             };
 
             let savedData = null;
@@ -847,7 +903,11 @@ const App = () => {
 
     if (isAdmin) {
         return (
-            <div className="fixed inset-0 bg-[#1a191c] flex w-full h-full text-white font-sans overflow-hidden z-50" style={patternSvg}>
+            <div className="fixed inset-0 bg-[#1a191c] flex w-full h-full text-white font-sans overflow-hidden z-50">
+                
+                {/* Textura de Fundo SVG Pattern Gestor */}
+                <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.08]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30,45 C30,35 40,35 40,45 L40,75 C40,85 30,85 30,75 Z M32,45 L38,45 L38,75 L32,75 Z M70,40 L90,40 L88,80 L72,80 Z M74,42 L86,42 L84,78 L76,78 Z' fill='%23d79e51' fill-rule='evenodd'/%3E%3C/svg%3E")` }}></div>
+
                 <div className={`absolute md:relative z-[60] w-64 bg-[#242326] border-r border-gray-800 flex flex-col h-full transform ${adminMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 flex-shrink-0`}>
                     <div className="p-5 flex items-center justify-between border-b border-gray-800">
                         <h2 className="font-bold text-xl text-[#d79e51] uppercase tracking-wider">Gestão</h2>
@@ -875,12 +935,14 @@ const App = () => {
                                     <span className="text-sm font-medium">Configurações</span>
                                 </button>
                             </li>
-                            <li>
-                                <button onClick={() => setAdminView('nova_loja')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'nova_loja' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
-                                    <i className={`fas fa-store w-6 ${adminView === 'nova_loja' ? 'text-[#d79e51]' : ''}`}></i>
-                                    <span className="text-sm font-medium">Nova Loja</span>
-                                </button>
-                            </li>
+                            {isMatriz && (
+                                <li>
+                                    <button onClick={() => setAdminView('nova_loja')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'nova_loja' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
+                                        <i className={`fas fa-store w-6 ${adminView === 'nova_loja' ? 'text-[#d79e51]' : ''}`}></i>
+                                        <span className="text-sm font-medium">Nova Loja</span>
+                                    </button>
+                                </li>
+                            )}
                             <li>
                                 <button onClick={() => setAdminView('financeiro')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'financeiro' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
                                     <i className={`fas fa-dollar-sign w-6 ${adminView === 'financeiro' ? 'text-[#d79e51]' : ''}`}></i>
@@ -904,8 +966,8 @@ const App = () => {
 
                 {adminMenuOpen && <div onClick={() => setAdminMenuOpen(false)} className="fixed inset-0 bg-black/60 z-[55] md:hidden backdrop-blur-sm transition-opacity"></div>}
 
-                <div className="flex-1 flex flex-col overflow-hidden relative w-full" style={patternSvg}>
-                    <header className="bg-[#1f1e22]/90 backdrop-blur-md border-b border-gray-800 p-4 flex justify-between items-center z-10 flex-shrink-0">
+                <div className="flex-1 flex flex-col overflow-hidden relative w-full z-10">
+                    <header className="bg-[#1f1e22] border-b border-gray-800 p-4 flex justify-between items-center z-10 flex-shrink-0">
                         <div className="flex items-center">
                             <button onClick={() => setAdminMenuOpen(true)} className="md:hidden text-gray-400 hover:text-white mr-4 transition-colors">
                                 <i className="fas fa-bars text-xl"></i>
@@ -928,15 +990,17 @@ const App = () => {
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
                         
+                        {/* Area de Pedidos */}
+                        {}
                         {adminView === 'pedidos' && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 h-full items-start">
                                 {['novo', 'preparo', 'pronto'].map(status => (
-                                    <div key={status} className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 flex flex-col max-h-[80vh] shadow-sm">
-                                        <div className="p-3.5 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl flex justify-between items-center sticky top-0 z-10">
+                                    <div key={status} className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col max-h-[80vh] shadow-sm relative z-10">
+                                        <div className="p-3.5 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center sticky top-0 z-10">
                                             <h4 className="text-white font-medium tracking-wide uppercase text-sm">{status === 'novo' ? 'Novos Pedidos' : status === 'preparo' ? 'Em Preparo' : 'Prontos / Entrega'}</h4>
                                         </div>
                                         <div className="p-3 overflow-y-auto space-y-3 hide-scrollbar flex-1 min-h-[150px]">
-                                            {pedidosAdmin.filter(p => p.status === status).map(p => {
+                                            {pedidosAdminFiltrados.filter(p => p.status === status).map(p => {
                                                 let info = {};
                                                 if (typeof p.itens === 'string') {
                                                     try { info = JSON.parse(p.itens); } catch(e) {}
@@ -944,7 +1008,7 @@ const App = () => {
                                                     info = p.itens || {};
                                                 }
                                                 return (
-                                                    <div key={p.id} className="bg-[#363539] p-3 rounded-lg border border-gray-700 shadow-sm">
+                                                    <div key={p.id} className="bg-[#363539] p-3 rounded-lg border border-gray-700 shadow-sm relative z-10">
                                                         <div className="flex justify-between border-b border-gray-700 pb-2 mb-2">
                                                             <span className="text-white font-bold text-sm">#{p.id.substring(0,6).toUpperCase()} - {p.cliente_nome}</span>
                                                             <span className="text-[#d79e51] font-bold text-sm">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
@@ -973,7 +1037,7 @@ const App = () => {
                                                     </div>
                                                 )
                                             })}
-                                            {pedidosAdmin.filter(p => p.status === status).length === 0 && (
+                                            {pedidosAdminFiltrados.filter(p => p.status === status).length === 0 && (
                                                 <div className="text-gray-500 text-center text-sm mt-4">Vazio</div>
                                             )}
                                         </div>
@@ -982,12 +1046,14 @@ const App = () => {
                             </div>
                         )}
 
+                        {/* Area do Cardapio */}
+                        {}
                         {adminView === 'cardapio' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
-                                {produtos.map(p => {
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5 relative z-10">
+                                {produtos.filter(p => p.restaurante_id === idAdminLogado || (!p.restaurante_id && isMatriz)).map(p => {
                                     const cName = categorias.find(c => c.id === p.categoria_id)?.nome || 'Sem Categoria';
                                     return (
-                                    <div key={p.id} className="bg-[#1f1e22]/90 backdrop-blur-md border border-gray-800 rounded-xl overflow-hidden shadow-md">
+                                    <div key={p.id} className="bg-[#1f1e22] border border-gray-800 rounded-xl overflow-hidden shadow-md">
                                         <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className={`w-full h-28 object-cover ${!p.ativo ? 'grayscale opacity-50' : ''}`} />
                                         <div className="p-4">
                                             <p className="text-[9px] text-gray-400 uppercase tracking-widest">{cName}</p>
@@ -1003,16 +1069,27 @@ const App = () => {
                                         </div>
                                     </div>
                                 )})}
+                                {produtos.filter(p => p.restaurante_id === idAdminLogado || (!p.restaurante_id && isMatriz)).length === 0 && (
+                                    <div className="col-span-full text-center text-gray-500 py-10">
+                                        Nenhum produto cadastrado para esta loja ainda.
+                                    </div>
+                                )}
                             </div>
                         )}
 
+                        {/* Area de Configs */}
+                        {}
                         {adminView === 'configs' && (
-                            <div className="max-w-3xl mx-auto space-y-6 pt-2">
-                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
+                            <div className="max-w-3xl mx-auto space-y-6 pt-2 relative z-10">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Operação da Loja</h4>
                                     </div>
                                     <div className="p-5 space-y-5">
+                                        <div>
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Nome da Franquia / Loja</label>
+                                            <input type="text" value={restaurante.nome || ''} onChange={(e) => setRestaurante({...restaurante, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="Ex: Dogs do Mirso - Matriz" />
+                                        </div>
                                         <div className="flex justify-between items-center border-b border-gray-800 pb-5">
                                             <div>
                                                 <p className="text-white font-medium text-sm">Status do Restaurante</p>
@@ -1046,8 +1123,8 @@ const App = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 flex flex-col shadow-sm mt-6">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col shadow-sm mt-6">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Design do Aplicativo</h4>
                                     </div>
                                     <div className="p-5">
@@ -1082,10 +1159,12 @@ const App = () => {
                             </div>
                         )}
 
-                        {adminView === 'nova_loja' && (
-                            <div className="max-w-3xl mx-auto space-y-6 pt-2">
-                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
+                        {/* Area Nova Loja */}
+                        {}
+                        {adminView === 'nova_loja' && isMatriz && (
+                            <div className="max-w-3xl mx-auto space-y-6 pt-2 relative z-10">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Cadastrar Nova Unidade</h4>
                                     </div>
                                     <div className="p-5 space-y-5">
@@ -1113,10 +1192,12 @@ const App = () => {
                             </div>
                         )}
 
+                        {/* Area Financeiro */}
+                        {}
                         {adminView === 'financeiro' && (
-                            <div className="max-w-4xl mx-auto space-y-6 pt-2">
-                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
+                            <div className="max-w-4xl mx-auto space-y-6 pt-2 relative z-10">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Registrar Movimentação</h4>
                                     </div>
                                     <div className="p-5 space-y-4">
@@ -1125,7 +1206,7 @@ const App = () => {
                                                 <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Loja *</label>
                                                 <select value={financeiroForm.restaurante_id} onChange={(e) => setFinanceiroForm({...financeiroForm, restaurante_id: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm">
                                                     <option value="">Selecione...</option>
-                                                    {lojas.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                                                    {lojas.filter(l => l.id === idAdminLogado).map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
                                                 </select>
                                             </div>
                                             <div>
@@ -1152,8 +1233,8 @@ const App = () => {
                                     </div>
                                 </div>
                                 
-                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl flex justify-between items-center">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Receita por Produto (Pedidos Finalizados)</h4>
                                         <div className="text-sm font-bold text-[#d79e51]">
                                             Vendas: R$ {totalPedidosFinalizados.toFixed(2).replace('.', ',')}
@@ -1210,19 +1291,19 @@ const App = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl flex justify-between items-center">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Histórico e Saldo</h4>
                                         <div className="text-sm font-bold text-gray-300">
                                             Saldo Geral: <span className={saldoGeral >= 0 ? 'text-green-400 ml-1' : 'text-red-400 ml-1'}>R$ {saldoGeral.toFixed(2).replace('.', ',')}</span>
                                         </div>
                                     </div>
-                                    <div className="p-4 border-b border-gray-800 bg-[#1a191c]/90 flex flex-col md:flex-row gap-4 items-end">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1a191c] flex flex-col md:flex-row gap-4 items-end">
                                         <div className="flex-1 w-full">
                                             <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Filtrar por Loja</label>
                                             <select value={filtroLoja} onChange={(e) => setFiltroLoja(e.target.value)} className="w-full bg-[#242326] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-xs">
                                                 <option value="">Todas as Lojas</option>
-                                                {lojas.map(l => <option key={l.id} value={l.nome}>{l.nome}</option>)}
+                                                {lojas.filter(l => l.id === idAdminLogado).map(l => <option key={l.id} value={l.nome}>{l.nome}</option>)}
                                             </select>
                                         </div>
                                         <div className="flex-1 w-full">
@@ -1245,7 +1326,7 @@ const App = () => {
                                             </thead>
                                             <tbody className="divide-y divide-gray-800 text-sm">
                                                 {historicoFiltrado.map(item => (
-                                                    <tr key={item.id} className="hover:bg-[#1f1e22]/50 transition-colors">
+                                                    <tr key={item.id} className="hover:bg-[#1f1e22] transition-colors">
                                                         <td className="px-4 py-3 text-gray-400 text-xs">{item.data ? new Date(item.data).toLocaleDateString('pt-BR') : '--'}</td>
                                                         <td className="px-4 py-3 text-gray-400 text-xs">{item.loja}</td>
                                                         <td className="px-4 py-3 text-white text-xs">{item.descricao}</td>
@@ -1266,10 +1347,12 @@ const App = () => {
                             </div>
                         )}
 
+                        {/* Area de Promocoes */}
+                        {}
                         {adminView === 'promocoes' && (
-                            <div className="max-w-3xl mx-auto space-y-6 pt-2">
-                                <div className="bg-[#242326]/90 backdrop-blur-md rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22]/90 rounded-t-xl">
+                            <div className="max-w-3xl mx-auto space-y-6 pt-2 relative z-10">
+                                <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Disparo de Promoção via N8N</h4>
                                     </div>
                                     <div className="p-5 space-y-5">
@@ -1308,6 +1391,8 @@ const App = () => {
                     </main>
                 </div>
                 
+                {/* Modal Produto */}
+                {}
                 {modalProdutoAberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                         <div className="bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
@@ -1379,6 +1464,7 @@ const App = () => {
                     </div>
                 )}
 
+                {/* Modal Confirmacao */}
                 {modalConfirmacaoAberto.aberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                         <div className="bg-[#242326] border border-red-900/50 rounded-xl w-full max-w-sm flex flex-col shadow-[0_15px_40px_rgba(0,0,0,0.5)] transform animate-fade-in">
@@ -1401,10 +1487,15 @@ const App = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full" style={patternSvg}>
-            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d]/95 backdrop-blur-md relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto" style={patternSvg}>
+        <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full relative">
+            
+            {/* Textura de Fundo SVG Pattern Cliente */}
+            <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.08]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30,45 C30,35 40,35 40,45 L40,75 C40,85 30,85 30,75 Z M32,45 L38,45 L38,75 L32,75 Z M70,40 L90,40 L88,80 L72,80 Z M74,42 L86,42 L84,78 L76,78 Z' fill='%23d79e51' fill-rule='evenodd'/%3E%3C/svg%3E")` }}></div>
+
+            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto z-10">
                 
-                <div className="bg-[#1a191c]/90 backdrop-blur-md flex flex-col justify-center items-center py-2 border-b border-gray-800 text-xs shadow-md z-20">
+                {/* Header fixo da loja */}
+                <div className="bg-[#1a191c] flex flex-col justify-center items-center py-2 border-b border-gray-800 text-xs shadow-md z-20">
                     {lojas.length > 1 && (
                         <button onClick={() => setView('selecionar_loja')} className="text-white font-bold mb-1.5 flex items-center hover:text-[#d79e51] transition-colors">
                             {restaurante.nome} <i className="fas fa-chevron-down ml-1.5 text-[10px]"></i>
@@ -1423,6 +1514,7 @@ const App = () => {
 
                 <div className="flex-1 overflow-y-auto pb-24">
                     
+                    {/* View Selecionar Loja */}
                     {view === 'selecionar_loja' && (
                         <div className="pt-10 px-6 flex flex-col items-center min-h-[60vh]">
                             <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-6">Selecione a Loja</h2>
@@ -1445,6 +1537,7 @@ const App = () => {
                         </div>
                     )}
 
+                    {/* View Home */}
                     {view === 'home' && (
                         <div>
                             <div className="relative flex flex-col items-center mb-6">
@@ -1473,7 +1566,7 @@ const App = () => {
                             <div className="px-6 mt-8">
                                 <h3 className="font-medium text-lg text-white mb-3 uppercase tracking-wider">Destaques</h3>
                                 <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
-                                    {produtos.filter(p => p.is_destaque).map(p => (
+                                    {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id).map(p => (
                                         <div key={p.id} className="w-[80vw] max-w-[280px] bg-[#363539] rounded-2xl overflow-hidden shadow-lg flex-none border border-gray-700/50 snap-start">
                                             <div className="h-40 relative">
                                                 <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=Foto'} alt={p.nome} className="w-full h-full object-cover" />
@@ -1486,7 +1579,7 @@ const App = () => {
                                             </div>
                                         </div>
                                     ))}
-                                    {produtos.filter(p => p.is_destaque).length === 0 && !dbLoading && (
+                                    {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id).length === 0 && !dbLoading && (
                                         <p className="text-gray-500 text-sm">Nenhum destaque no momento.</p>
                                     )}
                                 </div>
@@ -1494,9 +1587,10 @@ const App = () => {
                         </div>
                     )}
 
+                    {/* View Cardapio */}
                     {view === 'cardapio' && (
                         <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d]/90 backdrop-blur-md z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
+                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Nosso Cardápio</h2>
                             </div>
                             
@@ -1511,14 +1605,14 @@ const App = () => {
                             <div className="space-y-8">
                                 {dbLoading && <p className="text-center text-gray-500 py-10"><i className="fas fa-spinner fa-spin mr-2"></i>Carregando cardápio...</p>}
                                 {!dbLoading && categorias.map(cat => {
-                                    const prods = produtos.filter(p => p.categoria_id === cat.id && p.ativo);
+                                    const prods = produtos.filter(p => p.categoria_id === cat.id && p.ativo && p.restaurante_id === restaurante.id);
                                     if(prods.length === 0) return null;
                                     return (
                                         <div key={cat.id}>
                                             <h3 className="text-xl text-[#d79e51] mb-4 border-b border-gray-700/50 pb-2 uppercase">{cat.nome}</h3>
                                             <div className="grid grid-cols-1 gap-4">
                                                 {prods.map(p => (
-                                                    <div key={p.id} className="bg-[#363539]/90 backdrop-blur-md rounded-2xl p-3 flex shadow border border-gray-700/50 h-full hover:border-[#d79e51]/40 transition-colors">
+                                                    <div key={p.id} className="bg-[#363539] rounded-2xl p-3 flex shadow border border-gray-700/50 h-full hover:border-[#d79e51]/40 transition-colors">
                                                         <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className="w-24 h-24 rounded-xl object-cover flex-shrink-0" />
                                                         <div className="ml-3 flex flex-col justify-between flex-grow min-w-0">
                                                             <div>
@@ -1540,9 +1634,11 @@ const App = () => {
                         </div>
                     )}
 
+                    {/* View Carrinho */}
+                    {}
                     {view === 'carrinho' && (
                         <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d]/90 backdrop-blur-md z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
+                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Seu Pedido</h2>
                             </div>
 
@@ -1635,9 +1731,11 @@ const App = () => {
                         </div>
                     )}
 
+                    {/* View Pedidos */}
+                    {}
                     {view === 'pedidos' && (
                         <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d]/90 backdrop-blur-md z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
+                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
                                 <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Meus Pedidos</h2>
                             </div>
                             
@@ -1682,6 +1780,8 @@ const App = () => {
                         </div>
                     )}
 
+                    {/* View Perfil e Admin Login */}
+                    {}
                     {view === 'perfil' && (
                         <div className="pt-10 flex flex-col items-center min-h-[60vh] px-4">
                             <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
@@ -1745,7 +1845,7 @@ const App = () => {
                     {view === 'admin-login' && (
                         <div className="pt-10 flex flex-col items-center px-6 min-h-[60vh]">
                             <h2 className="font-bold text-2xl text-[#d79e51] uppercase tracking-wider text-center mb-2">Acesso Restrito</h2>
-                            <p className="test-gray-400 text-sm text-center mb-8">Área exclusiva para gestão.</p>
+                            <p className="text-gray-400 text-sm text-center mb-8">Área exclusiva para gestão.</p>
                             <form onSubmit={loginAdminForm} className="w-full max-w-sm space-y-4">
                                 <div>
                                     <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase tracking-wider">E-mail</label>
@@ -1764,6 +1864,8 @@ const App = () => {
                     )}
                 </div>
 
+                {/* Navbar Inferior */}
+                {}
                 <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
                     <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
                         <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
