@@ -1865,8 +1865,7 @@ const App = () => {
                 </div>
 
                 {/* Navbar Inferior */}
-                {}
-                <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe">
+                <div className="fixed bottom-0 left-0 right-0 max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe md:rounded-t-2xl">
                     <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
                         <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
                     </button>
