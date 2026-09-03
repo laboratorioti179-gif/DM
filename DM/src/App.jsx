@@ -417,6 +417,15 @@ const App = () => {
 
     useEffect(() => {
         const initScripts = async () => {
+            document.documentElement.setAttribute('translate', 'no');
+            
+            if (!document.querySelector('meta[name="google"]')) {
+                const meta = document.createElement('meta');
+                meta.name = 'google';
+                meta.content = 'notranslate';
+                document.head.appendChild(meta);
+            }
+
             if (!document.getElementById('tailwind-cdn')) {
                 const script = document.createElement('script');
                 script.id = 'tailwind-cdn';
