@@ -426,6 +426,13 @@ const App = () => {
                 document.head.appendChild(meta);
             }
 
+            if (!document.querySelector('link[rel="icon"]')) {
+                const favicon = document.createElement('link');
+                favicon.rel = 'icon';
+                favicon.href = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🌭</text></svg>';
+                document.head.appendChild(favicon);
+            }
+
             if (!document.getElementById('tailwind-cdn')) {
                 const script = document.createElement('script');
                 script.id = 'tailwind-cdn';
