@@ -1641,7 +1641,7 @@ const App = () => {
                                                 {prods.map(p => (
                                                     <div key={p.id} className="bg-[#363539] rounded-3xl p-3 md:p-5 flex shadow-md border border-gray-700/50 h-full hover:border-[#d79e51]/50 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer" onClick={() => adicionarAoCarrinho(p)}>
                                                         <div className="overflow-hidden rounded-2xl w-28 h-28 md:w-40 md:h-40 flex-shrink-0 relative">
-                                                            <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                                                            <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
                                                             <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
                                                         </div>
                                                         <div className="ml-4 md:ml-6 flex flex-col justify-between flex-grow min-w-0 py-1 md:py-2">
