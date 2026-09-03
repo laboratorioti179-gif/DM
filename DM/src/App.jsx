@@ -417,6 +417,7 @@ const App = () => {
 
     useEffect(() => {
         const initScripts = async () => {
+            document.title = 'Dogs Do Mirso';
             document.documentElement.setAttribute('translate', 'no');
             
             if (!document.querySelector('meta[name="google"]')) {
