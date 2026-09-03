@@ -991,7 +991,6 @@ const App = () => {
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
                         
                         {/* Area de Pedidos */}
-                        {}
                         {adminView === 'pedidos' && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 h-full items-start">
                                 {['novo', 'preparo', 'pronto'].map(status => (
@@ -1047,7 +1046,6 @@ const App = () => {
                         )}
 
                         {/* Area do Cardapio */}
-                        {}
                         {adminView === 'cardapio' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5 relative z-10">
                                 {produtos.filter(p => p.restaurante_id === idAdminLogado || (!p.restaurante_id && isMatriz)).map(p => {
@@ -1078,7 +1076,6 @@ const App = () => {
                         )}
 
                         {/* Area de Configs */}
-                        {}
                         {adminView === 'configs' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2 relative z-10">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -1160,7 +1157,6 @@ const App = () => {
                         )}
 
                         {/* Area Nova Loja */}
-                        {}
                         {adminView === 'nova_loja' && isMatriz && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2 relative z-10">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -1193,7 +1189,6 @@ const App = () => {
                         )}
 
                         {/* Area Financeiro */}
-                        {}
                         {adminView === 'financeiro' && (
                             <div className="max-w-4xl mx-auto space-y-6 pt-2 relative z-10">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -1348,7 +1343,6 @@ const App = () => {
                         )}
 
                         {/* Area de Promocoes */}
-                        {}
                         {adminView === 'promocoes' && (
                             <div className="max-w-3xl mx-auto space-y-6 pt-2 relative z-10">
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
@@ -1392,7 +1386,6 @@ const App = () => {
                 </div>
                 
                 {/* Modal Produto */}
-                {}
                 {modalProdutoAberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                         <div className="bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
@@ -1487,50 +1480,55 @@ const App = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full relative">
+        <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full relative overflow-hidden">
             
             {/* Textura de Fundo SVG Pattern Cliente */}
-            <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.08]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30,45 C30,35 40,35 40,45 L40,75 C40,85 30,85 30,75 Z M32,45 L38,45 L38,75 L32,75 Z M70,40 L90,40 L88,80 L72,80 Z M74,42 L86,42 L84,78 L76,78 Z' fill='%23d79e51' fill-rule='evenodd'/%3E%3C/svg%3E")` }}></div>
+            <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05] md:opacity-[0.08]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30,45 C30,35 40,35 40,45 L40,75 C40,85 30,85 30,75 Z M32,45 L38,45 L38,75 L32,75 Z M70,40 L90,40 L88,80 L72,80 Z M74,42 L86,42 L84,78 L76,78 Z' fill='%23d79e51' fill-rule='evenodd'/%3E%3C/svg%3E")` }}></div>
 
-            <div className="w-full max-w-md min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 mx-auto z-10">
+            {/* Container Principal Inteligente (Fino no celular, Expandido no Desktop) */}
+            <div className="w-full max-w-md md:max-w-4xl lg:max-w-6xl xl:max-w-7xl min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] md:shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden transition-all duration-300 mx-auto z-10">
                 
                 {/* Header fixo da loja */}
-                <div className="bg-[#1a191c] flex flex-col justify-center items-center py-2 border-b border-gray-800 text-xs shadow-md z-20">
+                <div className="bg-[#1a191c] flex flex-col md:flex-row justify-center md:justify-between items-center py-3 md:py-4 px-6 border-b border-gray-800 text-xs md:text-sm shadow-md z-20">
                     {lojas.length > 1 && (
-                        <button onClick={() => setView('selecionar_loja')} className="text-white font-bold mb-1.5 flex items-center hover:text-[#d79e51] transition-colors">
-                            {restaurante.nome} <i className="fas fa-chevron-down ml-1.5 text-[10px]"></i>
+                        <button onClick={() => setView('selecionar_loja')} className="text-white font-bold mb-2 md:mb-0 flex items-center hover:text-[#d79e51] transition-colors text-sm md:text-base">
+                            {restaurante.nome} <i className="fas fa-chevron-down ml-2 text-[10px] md:text-xs"></i>
                         </button>
                     )}
-                    <div className="flex justify-center items-center">
-                        <span className="text-gray-300 flex items-center">
-                            <i className="fas fa-motorcycle text-[#d79e51] mr-2"></i> Delivery: {restaurante.tempo_entrega}
+                    <div className="flex justify-center items-center bg-[#242326] px-4 py-1.5 md:py-2 md:px-5 rounded-full border border-gray-800 shadow-inner">
+                        <span className="text-gray-300 flex items-center font-medium">
+                            <i className="fas fa-motorcycle text-[#d79e51] mr-2 text-sm"></i> Delivery: <span className="ml-1 text-white">{restaurante.tempo_entrega}</span>
                         </span>
-                        <span className="mx-3 text-gray-600">|</span>
-                        <span className={`font-medium ${restaurante.is_aberto ? 'text-[#d79e51]' : 'text-red-500'}`}>
-                            {restaurante.is_aberto ? 'Aberto' : 'Fechado'}
+                        <span className="mx-3 md:mx-4 text-gray-700">|</span>
+                        <span className={`font-bold flex items-center tracking-wider ${restaurante.is_aberto ? 'text-[#d79e51]' : 'text-red-500'}`}>
+                            <span className={`w-2 h-2 md:w-2.5 md:h-2.5 rounded-full mr-2 ${restaurante.is_aberto ? 'bg-[#d79e51] animate-pulse' : 'bg-red-500'}`}></span>
+                            {restaurante.is_aberto ? 'ABERTO' : 'FECHADO'}
                         </span>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto pb-24">
+                {/* Área Rolável */}
+                <div className="flex-1 overflow-y-auto pb-32 md:pb-28 relative">
                     
                     {/* View Selecionar Loja */}
                     {view === 'selecionar_loja' && (
-                        <div className="pt-10 px-6 flex flex-col items-center min-h-[60vh]">
-                            <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-6">Selecione a Loja</h2>
-                            <p className="text-gray-400 text-sm text-center mb-8">Escolha de qual unidade você deseja pedir hoje.</p>
-                            <div className="w-full space-y-4">
+                        <div className="pt-12 md:pt-20 px-6 flex flex-col items-center min-h-[60vh] max-w-4xl mx-auto">
+                            <h2 className="font-black text-3xl md:text-4xl text-white uppercase tracking-widest text-center mb-2">Selecione a Loja</h2>
+                            <p className="text-gray-400 text-base md:text-lg text-center mb-10 md:mb-14">Escolha de qual unidade você deseja pedir hoje.</p>
+                            <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                 {lojas.map(loja => (
                                     <button key={loja.id} onClick={() => {
                                         setRestaurante(loja);
                                         localStorage.setItem('loja_selecionada', loja.id);
                                         setView('home');
-                                    }} className="w-full bg-[#1f1e22] border border-gray-700 hover:border-[#d79e51] p-5 rounded-xl flex items-center justify-between transition-colors shadow-sm">
+                                    }} className="w-full bg-[#1f1e22] border-2 border-transparent hover:border-[#d79e51] p-6 md:p-8 rounded-2xl md:rounded-3xl flex items-center justify-between transition-all duration-300 shadow-lg hover:shadow-[0_10px_30px_rgba(215,158,81,0.15)] group">
                                         <div className="flex flex-col text-left">
-                                            <span className="text-white font-bold text-lg">{loja.nome}</span>
-                                            {loja.cep && <span className="text-gray-400 text-[11px] mt-1">CEP Ref: {loja.cep}</span>}
+                                            <span className="text-white font-bold text-xl md:text-2xl group-hover:text-[#d79e51] transition-colors">{loja.nome}</span>
+                                            {loja.cep && <span className="text-gray-400 text-xs md:text-sm mt-2 font-medium"><i className="fas fa-map-marker-alt mr-1"></i> CEP Ref: {loja.cep}</span>}
                                         </div>
-                                        <i className="fas fa-chevron-right text-[#d79e51] text-lg"></i>
+                                        <div className="w-10 h-10 md:w-14 md:h-14 rounded-full bg-[#2b2a2d] flex items-center justify-center group-hover:bg-[#d79e51] transition-all duration-300 group-hover:scale-110">
+                                            <i className="fas fa-chevron-right text-gray-400 group-hover:text-[#1a191c] text-lg md:text-xl"></i>
+                                        </div>
                                     </button>
                                 ))}
                             </div>
@@ -1540,47 +1538,56 @@ const App = () => {
                     {/* View Home */}
                     {view === 'home' && (
                         <div>
-                            <div className="relative flex flex-col items-center mb-6">
-                                <div className="w-full h-48 relative bg-gray-900 overflow-hidden">
+                            <div className="relative flex flex-col items-center mb-8 md:mb-16">
+                                <div className="w-full h-56 md:h-[400px] lg:h-[450px] relative bg-gray-900 overflow-hidden">
                                     <img src={restaurante.foto_capa_url} alt="Capa" className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80"></div>
+                                    <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-[#2b2a2d]"></div>
                                 </div>
-                                <div className="w-32 h-32 rounded-full border-4 border-[#d79e51] flex flex-col items-center justify-center -mt-16 z-10 bg-[#1f1e22] shadow-xl overflow-hidden relative">
+                                <div className="w-36 h-36 md:w-56 md:h-56 rounded-full border-4 md:border-8 border-[#d79e51] flex flex-col items-center justify-center -mt-18 md:-mt-28 z-10 bg-[#1f1e22] shadow-[0_15px_40px_rgba(0,0,0,0.6)] overflow-hidden relative">
                                     {restaurante.logo_url ? (
                                         <img src={restaurante.logo_url} alt="Logo" className="w-full h-full object-cover" />
                                     ) : (
-                                        <h1 className="font-bold text-xl tracking-wider text-white text-center leading-none z-10 px-2">{restaurante.nome}</h1>
+                                        <h1 className="font-bold text-2xl md:text-4xl tracking-wider text-white text-center leading-none z-10 px-2">{restaurante.nome}</h1>
                                     )}
                                 </div>
-                                <div className="text-center mt-4 w-full px-4">
-                                    <h2 className="font-bold text-white text-xl tracking-wider">{restaurante.nome}</h2>
-                                    <p className="text-[#d79e51] text-xs tracking-[0.35em] mt-1 uppercase">Cardápio Digital</p>
+                                <div className="text-center mt-5 md:mt-8 w-full px-4">
+                                    <h2 className="font-black text-white text-3xl md:text-5xl tracking-wider">{restaurante.nome}</h2>
+                                    <p className="text-[#d79e51] text-xs md:text-base tracking-[0.4em] mt-2 md:mt-4 uppercase font-bold">Cardápio Digital</p>
                                 </div>
-                                <div className="w-full px-6 mt-6 max-w-sm mx-auto">
-                                    <button onClick={fazerPedidoAgora} className="w-full font-bold text-xl py-4 rounded-xl active:scale-95 transition-transform" style={{ backgroundColor: '#d79e51', backgroundImage: 'linear-gradient(to right, #d79e51, #e8b776)', color: '#2b2a2d', boxShadow: '0 6px 20px rgba(215,158,81,0.25)' }}>
-                                        FAZER PEDIDO AGORA
+                                <div className="w-full px-6 mt-8 md:mt-10 max-w-sm md:max-w-lg mx-auto">
+                                    <button onClick={fazerPedidoAgora} className="w-full font-black text-xl md:text-2xl py-4 md:py-6 rounded-2xl md:rounded-3xl active:scale-95 hover:scale-[1.02] transition-all duration-300 flex items-center justify-center" style={{ backgroundColor: '#d79e51', backgroundImage: 'linear-gradient(135deg, #d79e51, #e8b776)', color: '#1a191c', boxShadow: '0 10px 30px rgba(215,158,81,0.3)' }}>
+                                        <i className="fas fa-shopping-bag mr-3"></i> FAZER PEDIDO
                                     </button>
                                 </div>
                             </div>
                             
-                            <div className="px-6 mt-8">
-                                <h3 className="font-medium text-lg text-white mb-3 uppercase tracking-wider">Destaques</h3>
-                                <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
+                            <div className="px-6 md:px-10 mt-10 md:mt-16 max-w-[1400px] mx-auto">
+                                <div className="flex items-center justify-between mb-6 md:mb-10">
+                                    <h3 className="font-black text-xl md:text-3xl text-white uppercase tracking-widest">Destaques</h3>
+                                    <div className="h-[2px] flex-1 bg-gradient-to-r from-[#d79e51]/50 to-transparent ml-4 md:ml-8"></div>
+                                </div>
+                                <div className="flex gap-4 overflow-x-auto pb-6 md:pb-8 snap-x md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:overflow-visible md:snap-none hide-scrollbar">
                                     {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id).map(p => (
-                                        <div key={p.id} className="w-[80vw] max-w-[280px] bg-[#363539] rounded-2xl overflow-hidden shadow-lg flex-none border border-gray-700/50 snap-start">
-                                            <div className="h-40 relative">
-                                                <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=Foto'} alt={p.nome} className="w-full h-full object-cover" />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+                                        <div key={p.id} className="w-[85vw] max-w-[300px] md:w-full md:max-w-none bg-[#363539] rounded-3xl overflow-hidden shadow-lg flex-none md:flex-auto border border-gray-700/50 snap-center hover:border-[#d79e51]/50 hover:shadow-[0_15px_35px_rgba(215,158,81,0.15)] hover:-translate-y-2 transition-all duration-300 group cursor-pointer" onClick={() => adicionarAoCarrinho(p)}>
+                                            <div className="h-48 md:h-64 relative overflow-hidden">
+                                                <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=Foto'} alt={p.nome} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-[#2c2b2e] via-[#2c2b2e]/20 to-transparent opacity-90"></div>
+                                                <div className="absolute top-4 left-4 bg-[#d79e51] text-[#1a191c] text-[10px] md:text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
+                                                    Mais Vendido
+                                                </div>
                                             </div>
-                                            <div className="p-4 relative bg-gradient-to-b from-[#363539] to-[#2c2b2e]">
-                                                <h4 className="font-medium text-lg text-white uppercase truncate">{p.nome}</h4>
-                                                <p className="text-[#d79e51] font-bold text-xl mt-1">R$ {p.preco.toFixed(2).replace('.',',')}</p>
-                                                <button onClick={() => adicionarAoCarrinho(p)} className="absolute bottom-4 right-4 w-9 h-9 border border-[#d79e51]/50 rounded-full flex items-center justify-center text-[#d79e51] hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors"><i className="fas fa-plus"></i></button>
+                                            <div className="p-5 md:p-7 relative bg-[#2c2b2e]">
+                                                <h4 className="font-bold text-lg md:text-2xl text-white uppercase truncate pr-14">{p.nome}</h4>
+                                                <p className="text-gray-400 text-xs md:text-base mt-2 line-clamp-2 md:line-clamp-3 h-10 md:h-14">{p.descricao}</p>
+                                                <div className="mt-4 md:mt-6 flex items-end justify-between">
+                                                    <p className="text-[#d79e51] font-black text-2xl md:text-3xl">R$ {p.preco.toFixed(2).replace('.',',')}</p>
+                                                    <button onClick={(e) => { e.stopPropagation(); adicionarAoCarrinho(p); }} className="absolute -top-7 right-6 w-14 h-14 bg-[#d79e51] rounded-full flex items-center justify-center text-[#1a191c] text-2xl shadow-[0_8px_20px_rgba(215,158,81,0.5)] group-hover:scale-110 active:scale-95 transition-all duration-300"><i className="fas fa-plus"></i></button>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
                                     {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id).length === 0 && !dbLoading && (
-                                        <p className="text-gray-500 text-sm">Nenhum destaque no momento.</p>
+                                        <p className="text-gray-500 text-sm md:text-base italic">Nenhum destaque no momento.</p>
                                     )}
                                 </div>
                             </div>
@@ -1589,39 +1596,45 @@ const App = () => {
 
                     {/* View Cardapio */}
                     {view === 'cardapio' && (
-                        <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
-                                <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Nosso Cardápio</h2>
+                        <div className="pt-6 px-4 md:px-10 max-w-[1400px] mx-auto">
+                            <div className="sticky top-0 bg-[#2b2a2d]/95 backdrop-blur-xl z-20 pb-4 pt-4 md:pt-6 mb-6 md:mb-10 border-b border-gray-800">
+                                <h2 className="font-black text-2xl md:text-4xl text-white uppercase tracking-widest text-center">Nosso Cardápio</h2>
                             </div>
                             
-                            <div className="flex overflow-x-auto gap-3 pb-4 mb-4 hide-scrollbar">
+                            <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-3 md:gap-4 pb-4 mb-8 md:mb-12 hide-scrollbar snap-x">
                                 {categorias.map(c => (
-                                    <div key={c.id} className="flex-none bg-[#363539] border border-gray-700 px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium text-gray-300 hover:text-[#d79e51] hover:border-[#d79e51] cursor-pointer transition-colors">
+                                    <button key={c.id} className="flex-none snap-start bg-[#1f1e22] border border-gray-700 px-5 md:px-8 py-2.5 md:py-3.5 rounded-full whitespace-nowrap text-sm md:text-base font-bold text-gray-300 hover:text-[#1a191c] hover:bg-[#d79e51] hover:border-[#d79e51] transition-all duration-300 shadow-sm hover:shadow-lg">
                                         {c.nome}
-                                    </div>
+                                    </button>
                                 ))}
                             </div>
 
-                            <div className="space-y-8">
-                                {dbLoading && <p className="text-center text-gray-500 py-10"><i className="fas fa-spinner fa-spin mr-2"></i>Carregando cardápio...</p>}
+                            <div className="space-y-10 md:space-y-16">
+                                {dbLoading && <p className="text-center text-gray-500 py-10 text-lg md:text-xl"><i className="fas fa-spinner fa-spin mr-3"></i>Carregando delícias...</p>}
                                 {!dbLoading && categorias.map(cat => {
                                     const prods = produtos.filter(p => p.categoria_id === cat.id && p.ativo && p.restaurante_id === restaurante.id);
                                     if(prods.length === 0) return null;
                                     return (
-                                        <div key={cat.id}>
-                                            <h3 className="text-xl text-[#d79e51] mb-4 border-b border-gray-700/50 pb-2 uppercase">{cat.nome}</h3>
-                                            <div className="grid grid-cols-1 gap-4">
+                                        <div key={cat.id} className="animate-fade-in">
+                                            <div className="flex items-center mb-6 md:mb-8">
+                                                <h3 className="text-xl md:text-3xl font-black text-[#d79e51] uppercase tracking-widest">{cat.nome}</h3>
+                                                <div className="h-[2px] flex-1 bg-gradient-to-r from-gray-700 to-transparent ml-4 md:ml-6"></div>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                                                 {prods.map(p => (
-                                                    <div key={p.id} className="bg-[#363539] rounded-2xl p-3 flex shadow border border-gray-700/50 h-full hover:border-[#d79e51]/40 transition-colors">
-                                                        <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className="w-24 h-24 rounded-xl object-cover flex-shrink-0" />
-                                                        <div className="ml-3 flex flex-col justify-between flex-grow min-w-0">
+                                                    <div key={p.id} className="bg-[#363539] rounded-3xl p-3 md:p-5 flex shadow-md border border-gray-700/50 h-full hover:border-[#d79e51]/50 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer" onClick={() => adicionarAoCarrinho(p)}>
+                                                        <div className="overflow-hidden rounded-2xl w-28 h-28 md:w-40 md:h-40 flex-shrink-0 relative">
+                                                            <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                                                            <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                                                        </div>
+                                                        <div className="ml-4 md:ml-6 flex flex-col justify-between flex-grow min-w-0 py-1 md:py-2">
                                                             <div>
-                                                                <h4 className="text-white text-lg leading-tight truncate">{p.nome}</h4>
-                                                                <p className="text-gray-400 text-[11px] mt-1 line-clamp-2">{p.descricao}</p>
+                                                                <h4 className="text-white text-lg md:text-2xl font-bold leading-tight truncate group-hover:text-[#d79e51] transition-colors">{p.nome}</h4>
+                                                                <p className="text-gray-400 text-xs md:text-sm mt-1.5 md:mt-2.5 line-clamp-2 md:line-clamp-3 leading-relaxed">{p.descricao}</p>
                                                             </div>
-                                                            <div className="flex justify-between items-end mt-2">
-                                                                <span className="text-[#d79e51] font-bold text-lg">R$ {p.preco.toFixed(2).replace('.',',')}</span>
-                                                                <button onClick={() => adicionarAoCarrinho(p)} className="w-8 h-8 border border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors"><i className="fas fa-plus"></i></button>
+                                                            <div className="flex justify-between items-center mt-3 md:mt-4">
+                                                                <span className="text-[#d79e51] font-black text-lg md:text-2xl">R$ {p.preco.toFixed(2).replace('.',',')}</span>
+                                                                <button onClick={(e) => { e.stopPropagation(); adicionarAoCarrinho(p); }} className="w-9 h-9 md:w-12 md:h-12 border-2 border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#1a191c] transition-all duration-300 active:scale-90 group-hover:shadow-[0_5px_15px_rgba(215,158,81,0.3)]"><i className="fas fa-plus md:text-lg"></i></button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1635,95 +1648,118 @@ const App = () => {
                     )}
 
                     {/* View Carrinho */}
-                    {}
                     {view === 'carrinho' && (
-                        <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-6 border-b border-gray-800">
-                                <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Seu Pedido</h2>
+                        <div className="pt-6 px-4 md:px-10 max-w-[1400px] mx-auto">
+                            <div className="sticky top-0 bg-[#2b2a2d]/95 backdrop-blur-xl z-20 pb-4 pt-4 md:pt-6 mb-6 md:mb-10 border-b border-gray-800">
+                                <h2 className="font-black text-2xl md:text-4xl text-white uppercase tracking-widest text-center">Seu Pedido</h2>
                             </div>
 
                             {carrinho.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center text-center mt-10">
-                                    <i className="fas fa-shopping-basket text-4xl text-gray-600 mb-4"></i>
-                                    <h3 className="font-medium text-xl text-gray-300 mb-2">Seu carrinho está vazio</h3>
-                                    <button onClick={() => setView('cardapio')} className="mt-4 px-6 py-3 border border-[#d79e51] text-[#d79e51] rounded-xl font-bold uppercase hover:bg-[#d79e51] hover:text-[#1a191c] transition-colors">Ver Cardápio</button>
+                                <div className="flex flex-col items-center justify-center text-center mt-16 md:mt-32 max-w-lg mx-auto">
+                                    <div className="w-24 h-24 md:w-32 md:h-32 bg-[#1f1e22] rounded-full flex items-center justify-center mb-6 md:mb-8 shadow-inner border border-gray-800">
+                                        <i className="fas fa-shopping-basket text-4xl md:text-6xl text-gray-600"></i>
+                                    </div>
+                                    <h3 className="font-bold text-xl md:text-3xl text-gray-300 mb-3">Seu carrinho está vazio</h3>
+                                    <p className="text-gray-500 text-sm md:text-lg mb-8 md:mb-10">Bateu aquela fome? Adicione itens incríveis ao seu pedido e receba no conforto de casa!</p>
+                                    <button onClick={() => setView('cardapio')} className="px-8 md:px-12 py-3.5 md:py-5 border-2 border-[#d79e51] text-[#d79e51] rounded-2xl md:rounded-3xl font-black text-base md:text-lg uppercase tracking-wider hover:bg-[#d79e51] hover:text-[#1a191c] transition-all duration-300 shadow-[0_5px_15px_rgba(215,158,81,0.1)] hover:shadow-[0_10px_30px_rgba(215,158,81,0.3)]">Explorar Cardápio</button>
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-start w-full">
-                                    <div className="w-full space-y-4 mb-8">
-                                        <h3 className="text-[#d79e51] font-medium uppercase text-sm border-b border-gray-800 pb-2 mb-4">Resumo dos Itens</h3>
+                                <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 w-full items-start">
+                                    <div className="w-full lg:w-3/5 space-y-4 md:space-y-6">
+                                        <h3 className="text-white font-black uppercase tracking-wider text-lg md:text-2xl border-b border-gray-800 pb-3 md:pb-4 mb-4 md:mb-6 flex items-center"><i className="fas fa-list-ul text-[#d79e51] mr-3"></i> Itens do Pedido</h3>
                                         {carrinho.map(item => (
-                                            <div key={item.id} className="bg-[#363539] rounded-xl p-3 border border-gray-700">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <h4 className="font-medium text-white">{item.nome}</h4>
-                                                    <span className="text-[#d79e51] font-bold">R$ {(item.preco * item.quantidade).toFixed(2).replace('.', ',')}</span>
+                                            <div key={item.id} className="bg-[#363539] rounded-2xl md:rounded-3xl p-4 md:p-6 border border-gray-700/50 shadow-md hover:border-gray-500 transition-colors">
+                                                <div className="flex justify-between items-start mb-3 md:mb-4">
+                                                    <h4 className="font-bold text-white text-base md:text-xl pr-4">{item.nome}</h4>
+                                                    <span className="text-[#d79e51] font-black text-lg md:text-2xl whitespace-nowrap">R$ {(item.preco * item.quantidade).toFixed(2).replace('.', ',')}</span>
                                                 </div>
-                                                <input type="text" placeholder="Observação (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.id, e.target.value)} className="w-full bg-[#1a191c] text-xs text-gray-300 border border-gray-700 rounded mb-3 px-2 py-1 outline-none focus:border-[#d79e51]" />
+                                                <input type="text" placeholder="Alguma observação? (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.id, e.target.value)} className="w-full bg-[#1a191c] text-sm md:text-base text-gray-300 border border-gray-700/80 rounded-xl mb-4 md:mb-5 px-4 md:px-5 py-2.5 md:py-3.5 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all" />
                                                 <div className="flex justify-between items-center">
-                                                    <span className="text-xs text-gray-400">R$ {item.preco.toFixed(2).replace('.', ',')} un</span>
-                                                    <div className="flex items-center space-x-3 bg-[#1a191c] rounded-lg px-2 py-1">
-                                                        <button onClick={() => alterarQuantidade(item.id, -1)} className="text-[#d79e51] w-6 h-6 flex justify-center items-center font-bold text-lg">-</button>
-                                                        <span className="text-white font-bold w-4 text-center">{item.quantidade}</span>
-                                                        <button onClick={() => alterarQuantidade(item.id, 1)} className="text-[#d79e51] w-6 h-6 flex justify-center items-center font-bold text-lg">+</button>
+                                                    <span className="text-sm md:text-base text-gray-400 font-medium">R$ {item.preco.toFixed(2).replace('.', ',')} / un</span>
+                                                    <div className="flex items-center space-x-1 md:space-x-2 bg-[#1a191c] rounded-xl p-1 border border-gray-800 shadow-inner">
+                                                        <button onClick={() => alterarQuantidade(item.id, -1)} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">-</button>
+                                                        <span className="text-white font-black w-8 md:w-10 text-center md:text-lg">{item.quantidade}</span>
+                                                        <button onClick={() => alterarQuantidade(item.id, 1)} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">+</button>
                                                     </div>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
 
-                                    <div className="w-full bg-[#242326] p-5 rounded-2xl border border-gray-800 shadow-lg">
-                                        <div className="space-y-6">
+                                    <div className="w-full lg:w-2/5 bg-[#1f1e22] p-6 md:p-8 rounded-3xl border border-gray-700/50 shadow-[0_15px_50px_rgba(0,0,0,0.5)] lg:sticky lg:top-32">
+                                        <div className="space-y-8 md:space-y-10">
                                             <div>
-                                                <h4 className="text-[#d79e51] font-medium uppercase mb-3 text-sm flex items-center"><i className="fas fa-map-marker-alt mr-2"></i> 1. Entrega</h4>
-                                                <select value={checkoutForm.tipo} onChange={e => setCheckoutForm({...checkoutForm, tipo: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-3 mb-3 outline-none focus:border-[#d79e51] text-sm">
+                                                <h4 className="text-white font-black uppercase tracking-wider mb-4 md:mb-5 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center"><i className="fas fa-motorcycle text-[#d79e51] mr-3"></i> 1. Recebimento</h4>
+                                                <select value={checkoutForm.tipo} onChange={e => setCheckoutForm({...checkoutForm, tipo: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl px-4 md:px-5 py-3.5 md:py-4 mb-4 md:mb-5 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] text-base md:text-lg font-medium transition-all shadow-sm cursor-pointer">
                                                     <option value="entrega">Entregar no meu endereço</option>
                                                     <option value="retirada">Retirar no estabelecimento</option>
                                                 </select>
                                                 
                                                 {checkoutForm.tipo === 'entrega' && (
-                                                    <div className="space-y-3 animate-fade-in">
-                                                        <div className="bg-[#1f1e22] p-3 rounded-lg border border-gray-700 text-sm">
-                                                            <p className="text-gray-400 text-xs mb-1">Entregar em:</p>
-                                                            <p className="text-white">{clienteDados.endereco || 'Nenhum endereço cadastrado no perfil.'}</p>
-                                                            {clienteDados.referencia && <p className="text-gray-400 text-xs mt-1">Ref: {clienteDados.referencia}</p>}
-                                                            <button onClick={() => setView('perfil')} className="text-[#d79e51] text-xs mt-2 underline">Editar no Perfil</button>
+                                                    <div className="space-y-4 animate-fade-in bg-[#2b2a2d] p-5 md:p-6 rounded-2xl border border-gray-700/50 shadow-inner">
+                                                        <div className="text-sm md:text-base">
+                                                            <div className="flex justify-between items-center mb-3">
+                                                                <p className="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-widest">Entregar em:</p>
+                                                                <button onClick={() => setView('perfil')} className="text-[#d79e51] hover:text-white text-xs md:text-sm font-bold transition-colors flex items-center bg-[#1a191c] px-3 py-1.5 rounded-lg border border-gray-800"><i className="fas fa-edit mr-2"></i> Alterar</button>
+                                                            </div>
+                                                            {clienteDados.endereco ? (
+                                                                <>
+                                                                    <p className="text-white font-medium leading-relaxed">{clienteDados.endereco}</p>
+                                                                    {clienteDados.referencia && <p className="text-gray-400 text-xs md:text-sm mt-2 border-t border-gray-700/50 pt-2"><i className="fas fa-info-circle mr-1"></i> Ref: {clienteDados.referencia}</p>}
+                                                                </>
+                                                            ) : (
+                                                                <p className="text-red-400 font-medium py-3"><i className="fas fa-exclamation-triangle mr-2"></i>Nenhum endereço cadastrado no perfil.</p>
+                                                            )}
                                                         </div>
                                                         {erroCep && erroCep.includes('Não fazemos entrega') && (
-                                                            <div className="bg-red-900/30 p-2 rounded border border-red-700 text-red-400 text-xs text-center font-bold">
-                                                                {erroCep}
+                                                            <div className="bg-red-500/10 p-3 md:p-4 rounded-xl border border-red-500/30 text-red-400 text-xs md:text-sm text-center font-bold">
+                                                                <i className="fas fa-times-circle mr-2"></i> {erroCep}
                                                             </div>
                                                         )}
                                                         
-                                                        <div className="relative w-full h-40 bg-[#1a191c] rounded-lg border border-gray-700 overflow-hidden">
+                                                        <div className="relative w-full h-48 md:h-64 bg-[#1a191c] rounded-xl border border-gray-700 overflow-hidden shadow-inner mt-5">
                                                             <div id="mapa-raio-container" className="absolute inset-0 w-full h-full z-0"></div>
-                                                            {!mapaAberto && <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-xs z-10"><i className="fas fa-spinner fa-spin mr-2"></i> Carregando Área...</div>}
+                                                            {!mapaAberto && <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm md:text-base font-medium z-10"><i className="fas fa-spinner fa-spin mr-3"></i> Carregando mapa de entrega...</div>}
                                                         </div>
-                                                        <p className="text-[10px] text-gray-400 text-center"><i className="fas fa-info-circle"></i> O círculo indica nossa área máxima de entrega ({restaurante.raio_entrega}km).</p>
+                                                        <p className="text-xs md:text-sm text-gray-400 text-center mt-3"><i className="fas fa-shield-alt mr-1.5"></i> Área de cobertura: Raio de {restaurante.raio_entrega}km.</p>
                                                     </div>
                                                 )}
                                             </div>
 
                                             <div>
-                                                <h4 className="text-[#d79e51] font-medium uppercase mb-3 text-sm flex items-center"><i className="fas fa-wallet mr-2"></i> 2. Pagamento</h4>
-                                                <div className="grid grid-cols-2 gap-3 mb-3">
-                                                    <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Cartão'})} className={`py-2 rounded-lg text-sm font-medium transition-all border ${checkoutForm.pagamento === 'Cartão' ? 'border-[#d79e51] bg-[#363539] text-white' : 'border-gray-700 bg-transparent text-gray-400'}`}>Cartão</button>
-                                                    <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Dinheiro'})} className={`py-2 rounded-lg text-sm font-medium transition-all border ${checkoutForm.pagamento === 'Dinheiro' ? 'border-[#d79e51] bg-[#363539] text-white' : 'border-gray-700 bg-transparent text-gray-400'}`}>Dinheiro</button>
+                                                <h4 className="text-white font-black uppercase tracking-wider mb-4 md:mb-5 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center"><i className="fas fa-wallet text-[#d79e51] mr-3"></i> 2. Pagamento</h4>
+                                                <div className="grid grid-cols-2 gap-3 md:gap-4 mb-4">
+                                                    <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Cartão'})} className={`py-3.5 md:py-4 rounded-xl text-sm md:text-lg font-bold transition-all border-2 ${checkoutForm.pagamento === 'Cartão' ? 'border-[#d79e51] bg-[#d79e51]/10 text-[#d79e51] shadow-inner' : 'border-gray-700 bg-[#1a191c] text-gray-400 hover:border-gray-500 hover:bg-[#242326]'}`}><i className="fas fa-credit-card mr-2"></i> Cartão</button>
+                                                    <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Dinheiro'})} className={`py-3.5 md:py-4 rounded-xl text-sm md:text-lg font-bold transition-all border-2 ${checkoutForm.pagamento === 'Dinheiro' ? 'border-[#d79e51] bg-[#d79e51]/10 text-[#d79e51] shadow-inner' : 'border-gray-700 bg-[#1a191c] text-gray-400 hover:border-gray-500 hover:bg-[#242326]'}`}><i className="fas fa-money-bill-wave mr-2"></i> Dinheiro</button>
                                                 </div>
                                                 {checkoutForm.pagamento === 'Dinheiro' && (
-                                                    <input type="text" placeholder="Troco para quanto?" value={checkoutForm.troco} onChange={e => setCheckoutForm({...checkoutForm, troco: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm animate-fade-in" />
+                                                    <div className="animate-fade-in mt-4 md:mt-5">
+                                                        <label className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-wider mb-2 block ml-1">Precisa de troco?</label>
+                                                        <input type="text" placeholder="Ex: Troco para R$ 100" value={checkoutForm.troco} onChange={e => setCheckoutForm({...checkoutForm, troco: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl px-4 md:px-5 py-3.5 md:py-4 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] text-base md:text-lg transition-all shadow-inner" />
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="border-t border-gray-700 pt-4 mt-6 mb-6">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-white font-bold text-xl uppercase">Total</span>
-                                                <span className="text-[#d79e51] font-bold text-2xl">R$ {totalCarrinho.toFixed(2).replace('.', ',')}</span>
+                                        <div className="bg-[#1a191c] rounded-2xl md:rounded-3xl p-5 md:p-7 mt-8 md:mt-10 border border-gray-800 shadow-inner">
+                                            <div className="flex justify-between items-center mb-3 text-gray-400 text-sm md:text-base font-medium">
+                                                <span>Subtotal</span>
+                                                <span>R$ {totalCarrinho.toFixed(2).replace('.', ',')}</span>
+                                            </div>
+                                            {checkoutForm.tipo === 'entrega' && (
+                                                <div className="flex justify-between items-center mb-5 text-gray-400 text-sm md:text-base font-medium">
+                                                    <span>Taxa de Entrega</span>
+                                                    <span className="text-[#d79e51] font-bold">A combinar</span>
+                                                </div>
+                                            )}
+                                            <div className="border-t border-gray-800 pt-4 mt-2 flex justify-between items-center">
+                                                <span className="text-white font-black text-lg md:text-2xl uppercase tracking-wider">Total</span>
+                                                <span className="text-[#d79e51] font-black text-2xl md:text-4xl">R$ {totalCarrinho.toFixed(2).replace('.', ',')}</span>
                                             </div>
                                         </div>
 
-                                        <button onClick={finalizarPedido} className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-xl py-4 rounded-xl active:scale-95 transition-transform flex justify-center items-center shadow-lg">
-                                            <i className="fas fa-check-circle mr-2"></i> ENVIAR PEDIDO
+                                        <button onClick={finalizarPedido} className="w-full mt-8 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-[#1a191c] font-black tracking-widest text-lg md:text-xl py-4 md:py-6 rounded-2xl md:rounded-3xl active:scale-95 transition-all duration-300 flex justify-center items-center shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_40px_rgba(16,185,129,0.4)]">
+                                            <i className="fas fa-check-circle mr-3 text-2xl"></i> CONFIRMAR PEDIDO
                                         </button>
                                     </div>
                                 </div>
@@ -1732,23 +1768,28 @@ const App = () => {
                     )}
 
                     {/* View Pedidos */}
-                    {}
                     {view === 'pedidos' && (
-                        <div className="pt-6 px-4">
-                            <div className="sticky top-0 bg-[#2b2a2d] z-10 pb-4 pt-2 mb-4 border-b border-gray-800">
-                                <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center">Meus Pedidos</h2>
+                        <div className="pt-6 px-4 md:px-10 max-w-[1400px] mx-auto">
+                            <div className="sticky top-0 bg-[#2b2a2d]/95 backdrop-blur-xl z-20 pb-4 pt-4 md:pt-6 mb-6 md:mb-10 border-b border-gray-800">
+                                <h2 className="font-black text-2xl md:text-4xl text-white uppercase tracking-widest text-center">Meus Pedidos</h2>
                             </div>
                             
                             {!clienteAuth ? (
-                                <div className="flex flex-col items-center justify-center text-center mt-10">
-                                    <i className="fas fa-user-lock text-4xl text-gray-600 mb-4"></i>
-                                    <p className="text-gray-400 mb-4">Identifique-se para ver seus pedidos.</p>
-                                    <button onClick={() => setView('perfil')} className="px-6 py-2 border border-[#d79e51] text-[#d79e51] rounded-xl font-bold">Ir para Perfil</button>
+                                <div className="flex flex-col items-center justify-center text-center mt-16 md:mt-32 max-w-lg mx-auto">
+                                    <div className="w-24 h-24 md:w-32 md:h-32 bg-[#1f1e22] rounded-full flex items-center justify-center mb-6 md:mb-8 shadow-inner border border-gray-800">
+                                        <i className="fas fa-user-lock text-4xl md:text-6xl text-gray-500"></i>
+                                    </div>
+                                    <h3 className="font-bold text-xl md:text-3xl text-white mb-3">Faça login para ver o histórico</h3>
+                                    <p className="text-gray-400 mb-8 md:mb-10 text-sm md:text-lg">Identifique-se com o seu celular para acessar todos os pedidos realizados e acompanhar os status.</p>
+                                    <button onClick={() => setView('perfil')} className="w-full px-8 py-4 md:py-5 bg-[#363539] hover:bg-[#d79e51] hover:text-[#1a191c] text-white rounded-2xl md:rounded-3xl font-black text-base md:text-lg uppercase tracking-wider transition-all duration-300 border border-gray-700 hover:border-[#d79e51] shadow-lg">Identificar-me Agora</button>
                                 </div>
                             ) : meusPedidos.length === 0 ? (
-                                <div className="text-center text-gray-500 mt-10">Nenhum pedido feito ainda.</div>
+                                <div className="text-center text-gray-500 mt-20 md:mt-32 text-lg md:text-2xl flex flex-col items-center font-medium">
+                                    <i className="fas fa-receipt text-6xl md:text-8xl mb-6 opacity-30"></i>
+                                    Você ainda não tem pedidos no histórico.
+                                </div>
                             ) : (
-                                <div className="grid grid-cols-1 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 md:gap-8">
                                     {meusPedidos.map(p => {
                                         let info = {};
                                         if (typeof p.itens === 'string') {
@@ -1757,19 +1798,23 @@ const App = () => {
                                             info = p.itens || {};
                                         }
                                         return (
-                                            <div key={p.id} className="bg-[#363539] rounded-xl p-4 border border-gray-700">
-                                                <div className="flex justify-between items-start mb-2 border-b border-gray-700/50 pb-2">
+                                            <div key={p.id} className="bg-[#363539] rounded-3xl p-5 md:p-7 border border-gray-700/50 shadow-lg hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:border-gray-500 transition-all duration-300 flex flex-col">
+                                                <div className="flex justify-between items-start mb-4 md:mb-5 border-b border-gray-700/50 pb-4">
                                                     <div>
-                                                        <h4 className="font-medium text-white text-sm">Pedido #{p.id.substring(0,6).toUpperCase()}</h4>
-                                                        <span className="text-[10px] text-gray-500">{new Date(p.created_at).toLocaleString('pt-BR')}</span>
+                                                        <h4 className="font-black text-white text-lg md:text-xl">Pedido #{p.id.substring(0,6).toUpperCase()}</h4>
+                                                        <span className="text-xs md:text-sm text-gray-400 font-medium flex items-center mt-1.5"><i className="far fa-clock mr-2 text-[#d79e51]"></i> {new Date(p.created_at).toLocaleString('pt-BR')}</span>
                                                     </div>
-                                                    <span className="text-[#d79e51] font-bold text-sm">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
+                                                    <span className="text-[#d79e51] font-black text-xl md:text-2xl">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
                                                 </div>
-                                                <p className="text-xs text-gray-300 mb-3 truncate">{info.lanches?.map(l => `${l.quantidade}x ${l.nome}`).join(', ')}</p>
-                                                <div className="flex justify-between items-center bg-[#1f1e22] p-2 rounded-lg">
-                                                    <span className="text-xs font-bold text-gray-400 uppercase">Status</span>
-                                                    <span className={`text-xs font-bold uppercase ${p.status==='novo'?'text-blue-400':p.status==='preparo'?'text-yellow-400':p.status==='pronto'?'text-green-400':p.status==='rejeitado'?'text-red-400':'text-gray-500'}`}>
-                                                        {p.status}
+                                                <div className="bg-[#242326] rounded-2xl p-4 mb-5 flex-1 border border-gray-800 shadow-inner">
+                                                    <p className="text-sm md:text-base text-gray-300 leading-relaxed line-clamp-4 font-medium">
+                                                        {info.lanches?.map(l => `${l.quantidade}x ${l.nome}`).join(', ')}
+                                                    </p>
+                                                </div>
+                                                <div className="flex justify-between items-center bg-[#1a191c] px-4 md:px-5 py-3 md:py-4 rounded-2xl border border-gray-800">
+                                                    <span className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest">Status Atual</span>
+                                                    <span className={`text-sm md:text-base font-black uppercase tracking-wider ${p.status==='novo'?'text-blue-400':p.status==='preparo'?'text-yellow-400 animate-pulse':p.status==='pronto'?'text-emerald-400':p.status==='rejeitado'?'text-red-400':'text-gray-500'}`}>
+                                                        {p.status === 'novo' ? 'Aguardando' : p.status === 'preparo' ? 'Em Preparo' : p.status === 'pronto' ? 'A Caminho' : p.status}
                                                     </span>
                                                 </div>
                                             </div>
@@ -1781,108 +1826,155 @@ const App = () => {
                     )}
 
                     {/* View Perfil e Admin Login */}
-                    {}
                     {view === 'perfil' && (
-                        <div className="pt-10 flex flex-col items-center min-h-[60vh] px-4">
-                            <h2 className="font-bold text-2xl text-white uppercase tracking-wider text-center mb-2">Seu Perfil</h2>
-                            <p className="text-gray-400 text-sm text-center mb-8">Identifique-se para facilitar seus pedidos.</p>
+                        <div className="pt-10 md:pt-16 flex flex-col items-center min-h-[60vh] px-4 max-w-4xl mx-auto">
+                            <h2 className="font-black text-3xl md:text-5xl text-white uppercase tracking-widest text-center mb-3">Seu Perfil</h2>
+                            <p className="text-gray-400 text-sm md:text-lg text-center mb-10 md:mb-14">Configure seus dados para agilizar seus próximos pedidos.</p>
                             
                             {!clienteAuth ? (
-                                <form onSubmit={(e) => { e.preventDefault(); salvarPerfil(); }} className="w-full max-w-sm space-y-4">
+                                <form onSubmit={(e) => { e.preventDefault(); salvarPerfil(); }} className="w-full max-w-md md:max-w-xl space-y-5 md:space-y-6 bg-[#1f1e22] p-6 md:p-10 rounded-3xl border border-gray-800 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                                     <div>
-                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Nome Completo</label>
-                                        <input type="text" value={clienteDados.nome} onChange={e => setClienteDados({...clienteDados, nome: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" required />
+                                        <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 md:mb-3 ml-1 uppercase tracking-widest">Nome Completo</label>
+                                        <input type="text" value={clienteDados.nome} onChange={e => setClienteDados({...clienteDados, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required placeholder="Como gosta de ser chamado?" />
                                     </div>
                                     <div>
-                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Celular (WhatsApp)</label>
-                                        <input type="tel" value={clienteDados.celular} onChange={e => setClienteDados({...clienteDados, celular: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" required />
+                                        <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 md:mb-3 ml-1 uppercase tracking-widest">Celular (WhatsApp)</label>
+                                        <input type="tel" value={clienteDados.celular} onChange={e => setClienteDados({...clienteDados, celular: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required placeholder="(00) 90000-0000" />
                                     </div>
-                                    <div>
-                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">CEP</label>
-                                        <input type="text" value={clienteDados.cep || ''} onBlur={(e) => buscarCep(e.target.value)} onChange={e => setClienteDados({...clienteDados, cep: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" placeholder="Ex: 01001-000" />
-                                        {cepBuscando && <p className="text-[10px] text-gray-400 mt-1"><i className="fas fa-spinner fa-spin"></i> Buscando endereço e validando área...</p>}
-                                        {erroCep && <p className="text-[10px] text-red-400 mt-1 font-bold">{erroCep}</p>}
+                                    <div className="border-t border-gray-800 pt-6 md:pt-8 mt-4 md:mt-6">
+                                        <h4 className="text-white text-base md:text-lg font-black uppercase tracking-widest mb-5 flex items-center"><i className="fas fa-map-marker-alt text-[#d79e51] mr-3"></i> Endereço de Entrega</h4>
+                                        <div className="space-y-5">
+                                            <div>
+                                                <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">CEP</label>
+                                                <input type="text" value={clienteDados.cep || ''} onBlur={(e) => buscarCep(e.target.value)} onChange={e => setClienteDados({...clienteDados, cep: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 transition-all text-base" placeholder="00000-000" />
+                                                {cepBuscando && <p className="text-xs md:text-sm text-[#d79e51] mt-3 font-medium flex items-center"><i className="fas fa-spinner fa-spin mr-2"></i> Buscando endereço e validando área...</p>}
+                                                {erroCep && <p className="text-xs md:text-sm text-red-400 mt-3 font-bold flex items-center bg-red-500/10 p-3 rounded-lg"><i className="fas fa-exclamation-circle mr-2"></i>{erroCep}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">Endereço Completo</label>
+                                                <textarea value={clienteDados.endereco || ''} onChange={e => setClienteDados({...clienteDados, endereco: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 transition-all resize-none text-base" rows="2" placeholder="Rua, Número, Bairro"></textarea>
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">Ponto de Referência</label>
+                                                <input type="text" value={clienteDados.referencia || ''} onChange={e => setClienteDados({...clienteDados, referencia: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 transition-all text-base" placeholder="Apto, Bloco, Casa de esquina..." />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Endereço (Rua, Número, Bairro)</label>
-                                        <textarea value={clienteDados.endereco || ''} onChange={e => setClienteDados({...clienteDados, endereco: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" rows="2" placeholder="Digite seu endereço completo"></textarea>
-                                    </div>
-                                    <div>
-                                        <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase">Ponto de Referência</label>
-                                        <input type="text" value={clienteDados.referencia || ''} onChange={e => setClienteDados({...clienteDados, referencia: e.target.value})} className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors" />
-                                    </div>
-                                    <button type="submit" className="w-full bg-[#d79e51] text-[#1a191c] font-bold text-xl py-3.5 rounded-xl shadow-lg mt-4">ACESSAR / SALVAR</button>
+                                    <button type="submit" className="w-full bg-[#d79e51] text-[#1a191c] font-black text-xl md:text-2xl py-4 md:py-5 rounded-xl md:rounded-2xl shadow-[0_10px_30px_rgba(215,158,81,0.3)] hover:bg-[#e8b776] hover:shadow-[0_15px_40px_rgba(215,158,81,0.4)] active:scale-95 transition-all mt-8 md:mt-10 tracking-wider">ACESSAR / SALVAR</button>
                                 </form>
                             ) : (
-                                <div className="w-full max-w-sm space-y-4">
-                                    <div className="bg-[#1f1e22] border border-gray-700 rounded-xl p-4">
-                                        <div className="mb-4 border-b border-gray-700 pb-4">
-                                            <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Nome Completo</span>
-                                            <span className="text-white text-lg font-medium">{clienteDados.nome}</span>
+                                <div className="w-full max-w-md md:max-w-xl space-y-4 md:space-y-6">
+                                    <div className="bg-[#1f1e22] border border-gray-800 rounded-3xl p-6 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
+                                        <div className="mb-6 md:mb-8 border-b border-gray-800 pb-6 md:pb-8 flex items-center">
+                                            <div className="w-14 h-14 md:w-20 md:h-20 bg-[#363539] rounded-full flex items-center justify-center mr-4 md:mr-6 text-white text-2xl md:text-3xl border-2 border-gray-700 shadow-inner">
+                                                <i className="fas fa-user"></i>
+                                            </div>
+                                            <div>
+                                                <span className="block text-gray-500 text-xs md:text-sm font-bold mb-1 md:mb-2 uppercase tracking-widest">Nome Completo</span>
+                                                <span className="text-white text-xl md:text-3xl font-black tracking-wide">{clienteDados.nome}</span>
+                                            </div>
                                         </div>
-                                        <div className="mb-4 border-b border-gray-700 pb-4">
-                                            <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Celular (WhatsApp)</span>
-                                            <span className="text-[#d79e51] text-lg tracking-wide">{clienteDados.celular}</span>
+                                        <div className="mb-6 md:mb-8 border-b border-gray-800 pb-6 md:pb-8">
+                                            <span className="block text-gray-500 text-xs md:text-sm font-bold mb-3 uppercase tracking-widest flex items-center"><i className="fab fa-whatsapp mr-2 text-[#d79e51] text-base md:text-lg"></i> Celular</span>
+                                            <span className="text-white text-lg md:text-xl font-bold tracking-widest bg-[#1a191c] px-5 py-3 md:py-4 rounded-xl md:rounded-2xl inline-block border border-gray-800 shadow-inner">{clienteDados.celular}</span>
                                         </div>
                                         <div>
-                                            <span className="block text-gray-400 text-xs font-bold mb-1 uppercase">Endereço de Entrega</span>
-                                            <span className="text-gray-200 text-sm block">{clienteDados.endereco || 'Não cadastrado'}</span>
-                                            {clienteDados.referencia && <span className="block text-gray-400 text-xs mt-1">Ref: {clienteDados.referencia}</span>}
-                                            {erroCep && erroCep.includes('Não fazemos entrega') && <span className="block text-red-400 text-xs mt-1 font-bold">{erroCep}</span>}
+                                            <span className="block text-gray-500 text-xs md:text-sm font-bold mb-3 uppercase tracking-widest flex items-center"><i className="fas fa-map-marker-alt mr-2 text-[#d79e51] text-base md:text-lg"></i> Endereço de Entrega</span>
+                                            <div className="bg-[#1a191c] p-5 md:p-6 rounded-2xl border border-gray-800 shadow-inner">
+                                                <span className="text-gray-200 text-sm md:text-base block leading-relaxed font-medium">{clienteDados.endereco || <span className="italic text-gray-500">Não cadastrado</span>}</span>
+                                                {clienteDados.referencia && <span className="block text-gray-400 text-xs md:text-sm mt-3 border-t border-gray-800 pt-3"><strong className="text-gray-500 uppercase tracking-widest mr-2">Ref:</strong> {clienteDados.referencia}</span>}
+                                                {erroCep && erroCep.includes('Não fazemos entrega') && <span className="block text-red-400 text-xs md:text-sm mt-3 font-bold p-3 bg-red-500/10 rounded-xl"><i className="fas fa-exclamation-triangle mr-2"></i> {erroCep}</span>}
+                                            </div>
                                         </div>
                                     </div>
-                                    <button onClick={() => setClienteAuth(false)} className="w-full bg-[#363539] border border-gray-600 text-white py-3 rounded-xl hover:bg-gray-700 mb-2 transition-colors">Editar Dados / Endereço</button>
-                                    <button onClick={() => {setClienteAuth(false); setClienteDados({nome:'', celular:'', cep:'', endereco:'', referencia:'', lat:null, lng:null}); setErroCep(''); localStorage.removeItem('cliente_nome'); localStorage.removeItem('cliente_celular'); localStorage.removeItem('cliente_cep'); localStorage.removeItem('cliente_endereco'); localStorage.removeItem('cliente_referencia');}} className="w-full bg-transparent border border-red-900/50 text-red-400 py-3 rounded-xl hover:bg-red-900/10 transition-colors">Sair da Conta</button>
+                                    <div className="grid grid-cols-2 gap-3 md:gap-5 mt-6 md:mt-8">
+                                        <button onClick={() => setClienteAuth(false)} className="w-full bg-[#363539] border border-gray-700 text-white py-4 md:py-5 rounded-2xl font-bold text-sm md:text-base uppercase tracking-wider hover:bg-[#d79e51] hover:text-[#1a191c] hover:border-[#d79e51] transition-all shadow-md">Editar Perfil</button>
+                                        <button onClick={() => {setClienteAuth(false); setClienteDados({nome:'', celular:'', cep:'', endereco:'', referencia:'', lat:null, lng:null}); setErroCep(''); localStorage.removeItem('cliente_nome'); localStorage.removeItem('cliente_celular'); localStorage.removeItem('cliente_cep'); localStorage.removeItem('cliente_endereco'); localStorage.removeItem('cliente_referencia');}} className="w-full bg-[#1a191c] border border-red-900/50 text-red-400 py-4 md:py-5 rounded-2xl font-bold text-sm md:text-base uppercase tracking-wider hover:bg-red-900/20 hover:text-red-300 transition-all shadow-md">Sair da Conta</button>
+                                    </div>
                                 </div>
                             )}
 
-                            <div className="mt-8 pt-4 border-t border-gray-800 text-center w-full">
-                                <button onClick={() => setView('admin-login')} className="text-[10px] text-gray-600 font-sans uppercase tracking-widest hover:text-[#d79e51] transition-colors">Área Restrita</button>
+                            <div className="mt-14 md:mt-20 pt-8 border-t border-gray-800 text-center w-full max-w-md md:max-w-xl">
+                                <button onClick={() => setView('admin-login')} className="text-xs md:text-sm text-gray-600 font-bold uppercase tracking-widest hover:text-[#d79e51] transition-colors flex items-center justify-center mx-auto bg-transparent border border-transparent hover:border-gray-800 py-2 px-4 rounded-lg"><i className="fas fa-lock mr-2"></i> Área Restrita (Gestão)</button>
                             </div>
                         </div>
                     )}
 
+                    {/* View Login Admin */}
                     {view === 'admin-login' && (
-                        <div className="pt-10 flex flex-col items-center px-6 min-h-[60vh]">
-                            <h2 className="font-bold text-2xl text-[#d79e51] uppercase tracking-wider text-center mb-2">Acesso Restrito</h2>
-                            <p className="text-gray-400 text-sm text-center mb-8">Área exclusiva para gestão.</p>
-                            <form onSubmit={loginAdminForm} className="w-full max-w-sm space-y-4">
+                        <div className="pt-16 md:pt-24 flex flex-col items-center px-6 min-h-[60vh] max-w-md md:max-w-lg mx-auto">
+                            <div className="w-20 h-20 md:w-24 md:h-24 bg-[#1f1e22] rounded-full flex items-center justify-center mb-6 md:mb-8 shadow-inner border-2 border-[#d79e51]/30">
+                                <i className="fas fa-user-shield text-4xl md:text-5xl text-[#d79e51]"></i>
+                            </div>
+                            <h2 className="font-black text-2xl md:text-4xl text-[#d79e51] uppercase tracking-widest text-center mb-3">Acesso Restrito</h2>
+                            <p className="text-gray-400 text-sm md:text-base text-center mb-10 md:mb-12">Área exclusiva para proprietários e gerentes de loja.</p>
+                            <form onSubmit={loginAdminForm} className="w-full space-y-5 md:space-y-6 bg-[#1f1e22] p-6 md:p-10 rounded-3xl border border-gray-800 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                                 <div>
-                                    <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase tracking-wider">E-mail</label>
-                                    <input type="email" name="email" placeholder="admin@email.com" className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors text-sm" required />
+                                    <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-widest">E-mail</label>
+                                    <div className="relative">
+                                        <i className="fas fa-envelope absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 md:text-lg"></i>
+                                        <input type="email" name="email" placeholder="admin@email.com" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl md:rounded-2xl pl-12 md:pl-14 pr-4 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required />
+                                    </div>
                                 </div>
                                 <div>
-                                    <label className="block text-[#d79e51] text-xs font-bold mb-1 ml-1 uppercase tracking-wider">Senha</label>
-                                    <input type="password" name="senha" placeholder="••••••••" className="w-full bg-[#1f1e22] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d79e51] transition-colors text-sm" required />
+                                    <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-widest">Senha</label>
+                                    <div className="relative">
+                                        <i className="fas fa-lock absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 md:text-lg"></i>
+                                        <input type="password" name="senha" placeholder="••••••••" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl md:rounded-2xl pl-12 md:pl-14 pr-4 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required />
+                                    </div>
                                 </div>
-                                <button type="submit" className="w-full bg-gray-800 hover:bg-gray-700 text-white font-bold text-xl py-3.5 rounded-xl border border-gray-600 active:scale-95 transition-all mt-4">
+                                <button type="submit" className="w-full bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] font-black tracking-widest text-lg md:text-xl py-4 md:py-5 rounded-xl md:rounded-2xl shadow-[0_10px_25px_rgba(215,158,81,0.3)] active:scale-95 transition-all mt-8">
                                     ENTRAR NO PAINEL
                                 </button>
-                                <button type="button" onClick={() => setView('perfil')} className="w-full bg-transparent text-gray-500 hover:text-white text-sm py-2 mt-2">Voltar</button>
+                                <button type="button" onClick={() => setView('perfil')} className="w-full bg-transparent text-gray-500 hover:text-white font-bold text-sm md:text-base uppercase tracking-wider py-3 md:py-4 mt-2 rounded-xl transition-colors border border-transparent hover:border-gray-700">Voltar para a Loja</button>
                             </form>
                         </div>
                     )}
                 </div>
 
-                {/* Navbar Inferior */}
-                <div className="fixed bottom-0 left-0 right-0 max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-[#242326]/95 backdrop-blur-xl border-t border-gray-700/50 flex justify-around items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] py-2 pb-safe md:rounded-t-2xl">
-                    <button onClick={() => setView('home')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'home' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
-                        <i className="fas fa-home text-xl"></i><span className="text-[10px] font-medium">Início</span>
+                {/* Navbar Inferior Responsiva (Dock Flutuante no Desktop) */}
+                <div className="fixed bottom-0 md:bottom-8 left-0 right-0 w-full max-w-md md:max-w-3xl lg:max-w-5xl mx-auto bg-[#1a191c]/95 md:bg-[#242326]/90 backdrop-blur-xl border-t md:border border-gray-800 flex justify-around items-center z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] md:shadow-[0_20px_50px_rgba(0,0,0,0.8)] py-1.5 md:py-3 pb-safe md:pb-3 md:rounded-[2rem]">
+                    <button onClick={() => setView('home')} className={`flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'home' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className={`fas fa-home text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'home' ? 'animate-bounce-short' : ''}`}></i>
+                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">Início</span>
                     </button>
-                    <button onClick={() => setView('cardapio')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'cardapio' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
-                        <i className="fas fa-book-open text-xl"></i><span className="text-[10px] font-medium">Cardápio</span>
+                    <button onClick={() => setView('cardapio')} className={`flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'cardapio' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className={`fas fa-book-open text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'cardapio' ? 'animate-bounce-short' : ''}`}></i>
+                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">Cardápio</span>
                     </button>
-                    <button onClick={() => setView('pedidos')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'pedidos' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
-                        <i className="fas fa-receipt text-xl"></i><span className="text-[10px] font-medium">Pedidos</span>
+                    <button onClick={() => setView('pedidos')} className={`flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'pedidos' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className={`fas fa-receipt text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'pedidos' ? 'animate-bounce-short' : ''}`}></i>
+                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">Pedidos</span>
                     </button>
-                    <button onClick={() => setView('carrinho')} className={`relative flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'carrinho' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
-                        <i className="fas fa-shopping-cart text-xl"></i><span className="text-[10px] font-medium">Carrinho</span>
-                        {badgeCount > 0 && <span className="absolute -top-1 right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{badgeCount}</span>}
+                    <button onClick={() => setView('carrinho')} className={`relative flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'carrinho' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
+                        <div className="relative">
+                            <i className={`fas fa-shopping-bag text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'carrinho' ? 'animate-bounce-short' : ''}`}></i>
+                            {badgeCount > 0 && <span className="absolute -top-2 -right-3 md:-top-3 md:-right-4 bg-red-500 border-2 border-[#1a191c] md:border-[#242326] text-white text-[10px] md:text-xs font-black min-w-[20px] md:min-w-[24px] h-[20px] md:h-[24px] px-1 rounded-full flex items-center justify-center shadow-md animate-pulse">{badgeCount}</span>}
+                        </div>
+                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest mt-0.5 md:mt-1">Carrinho</span>
                     </button>
-                    <button onClick={() => setView('perfil')} className={`flex flex-col items-center space-y-1 w-1/5 py-1 transition-colors ${view === 'perfil' ? 'text-[#d79e51]' : 'text-gray-400 hover:text-white'}`}>
-                        <i className="fas fa-user text-xl"></i><span className="text-[10px] font-medium">Perfil</span>
+                    <button onClick={() => setView('perfil')} className={`flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'perfil' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
+                        <i className={`fas fa-user text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'perfil' ? 'animate-bounce-short' : ''}`}></i>
+                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">Perfil</span>
                     </button>
                 </div>
+
+                <style dangerouslySetInnerHTML={{__html: `
+                    @keyframes bounce-short {
+                        0%, 100% { transform: translateY(0); }
+                        50% { transform: translateY(-4px); }
+                    }
+                    .animate-bounce-short {
+                        animation: bounce-short 0.4s ease-in-out;
+                    }
+                    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
+                    
+                    /* Melhora as barras de rolagem no desktop */
+                    ::-webkit-scrollbar { width: 8px; height: 8px; }
+                    ::-webkit-scrollbar-track { background: #1a191c; }
+                    ::-webkit-scrollbar-thumb { background: #363539; border-radius: 4px; }
+                    ::-webkit-scrollbar-thumb:hover { background: #d79e51; }
+                `}} />
             </div>
         </div>
     );
