@@ -759,108 +759,171 @@ const App = () => {
     };
 
     useEffect(() => {
-        if (view === 'carrinho' && checkoutForm.tipo === 'entrega' && !mapRef.current && window.L) {
-            setTimeout(() => {
+        let timer;
+
+        const podeCriarMapa =
+            view === 'carrinho' &&
+            carrinho.length > 0 &&
+            checkoutForm.tipo === 'entrega' &&
+            !mapRef.current &&
+            window.L;
+
+        if (podeCriarMapa) {
+            timer = setTimeout(() => {
+                const container = document.getElementById('mapa-raio-container');
+
+                if (!container || mapRef.current) return;
+
                 try {
                     const lojaLat = restaurante.lat || -23.5329;
                     const lojaLng = restaurante.lng || -46.7920;
                     const raioMeters = (restaurante.raio_entrega || 5) * 1000;
 
-                    const map = window.L.map('mapa-raio-container', { zoomControl: false, attributionControl: false }).setView([lojaLat, lojaLng], 13);
-                    window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-                    window.L.circle([lojaLat, lojaLng], { color: '#d79e51', fillColor: '#d79e51', fillOpacity: 0.2, radius: raioMeters }).addTo(map);
+                    const map = window.L
+                        .map(container, { zoomControl: false, attributionControl: false })
+                        .setView([lojaLat, lojaLng], 13);
+
+                    window.L
+                        .tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png')
+                        .addTo(map);
+
+                    window.L.circle(
+                        [lojaLat, lojaLng],
+                        {
+                            color: '#d79e51',
+                            fillColor: '#d79e51',
+                            fillOpacity: 0.2,
+                            radius: raioMeters
+                        }
+                    ).addTo(map);
+
                     window.L.marker([lojaLat, lojaLng]).addTo(map).bindPopup('Restaurante');
-                    
+
                     if (clienteDados.lat && clienteDados.lng) {
-                        window.L.marker([clienteDados.lat, clienteDados.lng]).addTo(map).bindPopup('Sua Entrega');
+                        window.L
+                            .marker([clienteDados.lat, clienteDados.lng])
+                            .addTo(map)
+                            .bindPopup('Sua Entrega');
                     }
 
                     mapRef.current = map;
                     setMapaAberto(true);
-                } catch (e) { console.log("Erro ao carregar mapa", e); }
+                } catch (e) {
+                    console.log("Erro ao carregar mapa", e);
+                }
             }, 500);
-        } else if ((view !== 'carrinho' || checkoutForm.tipo !== 'entrega') && mapRef.current) {
+        }
+
+        if (
+            (view !== 'carrinho' ||
+                checkoutForm.tipo !== 'entrega' ||
+                carrinho.length === 0) &&
+            mapRef.current
+        ) {
             mapRef.current.remove();
             mapRef.current = null;
             setMapaAberto(false);
         }
-    }, [view, checkoutForm.tipo, restaurante.raio_entrega]);
+
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    }, [
+        view,
+        checkoutForm.tipo,
+        carrinho.length,
+        restaurante.raio_entrega,
+        restaurante.lat,
+        restaurante.lng,
+        clienteDados.lat,
+        clienteDados.lng
+    ]);
 
     const finalizarPedido = async () => {
-    if (enviandoPedido) return;
+        if (enviandoPedido) return;
 
-    if (!restaurante.is_aberto) {
-        alert("A loja está fechada no momento.");
-        return;
-    }
-
-    if (checkoutForm.tipo === 'entrega') {
-        if (!clienteDados.endereco) {
-            alert("Cadastre seu endereço no seu Perfil para solicitar entrega.");
+        if (!restaurante.is_aberto) {
+            alert("A loja está fechada no momento.");
             return;
         }
 
-        if (erroCep && erroCep.includes('Não fazemos entrega')) {
-            alert("Seu endereço está fora da nossa área de entrega.");
-            return;
-        }
-    }
-
-    setEnviandoPedido(true);
-
-    try {
-        const totalCalc = carrinho.reduce(
-            (sum, item) => sum + (item.preco * item.quantidade),
-            0
-        );
-
-        const novoPedido = {
-            id: Math.random().toString(36).substring(2, 9),
-            cliente_nome: clienteDados.nome,
-            cliente_celular: clienteDados.celular,
-            total: totalCalc,
-            status: 'novo',
-            itens: {
-                filial_id: restaurante.id,
-                filial_nome: restaurante.nome,
-                lanches: carrinho,
-                endereco:
-                    checkoutForm.tipo === 'entrega'
-                        ? clienteDados.endereco
-                        : 'Retirada',
-                referencia:
-                    checkoutForm.tipo === 'entrega'
-                        ? clienteDados.referencia
-                        : '',
-                pagamento: checkoutForm.pagamento,
-                troco: checkoutForm.troco
+        if (checkoutForm.tipo === 'entrega') {
+            if (!clienteDados.endereco) {
+                alert("Cadastre seu endereço no seu Perfil para solicitar entrega.");
+                return;
             }
-        };
 
-        if (supabase) {
-            const { error } = await supabase
-                .from('pedidos')
-                .insert([novoPedido]);
-
-            if (error) {
-                console.error("Erro insert pedido:", error);
-                alert("Erro ao enviar pedido para o restaurante.");
+            if (erroCep && erroCep.includes('Não fazemos entrega')) {
+                alert("Seu endereço está fora da nossa área de entrega.");
                 return;
             }
         }
 
-        setCarrinho([]);
-        carregarMeusPedidos(clienteDados.celular);
-        setView('pedidos');
-        alert("Pedido enviado com sucesso!");
+        setEnviandoPedido(true);
 
-    } catch (err) {
-        console.error("Erro ao finalizar pedido:", err);
-        alert("Erro ao enviar pedido para o restaurante.");
-    } finally {
-        setEnviandoPedido(false);
-    }
-};
+        try {
+            const totalCalc = carrinho.reduce(
+                (sum, item) => sum + (item.preco * item.quantidade),
+                0
+            );
+
+            const novoPedido = {
+                id: Math.random().toString(36).substring(2, 9),
+                cliente_nome: clienteDados.nome,
+                cliente_celular: clienteDados.celular,
+                total: totalCalc,
+                status: 'novo',
+                itens: {
+                    filial_id: restaurante.id,
+                    filial_nome: restaurante.nome,
+                    lanches: carrinho,
+                    endereco: checkoutForm.tipo === 'entrega' ? clienteDados.endereco : 'Retirada',
+                    referencia: checkoutForm.tipo === 'entrega' ? clienteDados.referencia : '',
+                    pagamento: checkoutForm.pagamento,
+                    troco: checkoutForm.troco
+                }
+            };
+
+            if (supabase) {
+                const { error } = await supabase.from('pedidos').insert([novoPedido]);
+
+                if (error) {
+                    console.error("Erro insert pedido:", error);
+                    alert("Erro ao enviar pedido para o restaurante.");
+                    return;
+                }
+            }
+
+            setCarrinho([]);
+            carregarMeusPedidos(clienteDados.celular);
+            setView('pedidos');
+            alert("Pedido enviado com sucesso!");
+        } catch (err) {
+            console.error("Erro ao finalizar pedido:", err);
+            alert("Erro ao enviar pedido para o restaurante.");
+        } finally {
+            setEnviandoPedido(false);
+        }
+    };
+
+    const moverPedidoStatus = async (id, novoStatus) => {
+        setPedidosAdmin(prev =>
+            prev.map(p => p.id === id ? { ...p, status: novoStatus } : p)
+        );
+
+        if (supabase) {
+            const { error } = await supabase
+                .from('pedidos')
+                .update({ status: novoStatus })
+                .eq('id', id);
+
+            if (error) {
+                console.error("Erro ao atualizar pedido:", error);
+                carregarPedidosAdminLocal();
+            }
+        }
+    };
+
     const imprimirNota = (pedido) => {
         let info = {};
         if (typeof pedido.itens === 'string') {
