@@ -39,6 +39,11 @@ const App = () => {
     const mapRef = useRef(null);
     const [redirectPosLogin, setRedirectPosLogin] = useState(null);
     
+    const [itemSelecionado, setItemSelecionado] = useState(null);
+    const [observacao, setObservacao] = useState("");
+    const [quantidadeSelecionada, setQuantidadeSelecionada] = useState(1);
+    const [enviandoPedido, setEnviandoPedido] = useState(false);
+    
     const [cepLojaBuscando, setCepLojaBuscando] = useState(false);
     const [erroCepLoja, setErroCepLoja] = useState('');
     const [lojas, setLojas] = useState([]);
@@ -367,6 +372,36 @@ const App = () => {
             carrinhoAtual.push({ ...produto, quantidade: 1, observacao: '' });
         }
         setCarrinho(carrinhoAtual);
+    };
+
+    const abrirDetalheItem = (item) => {
+        setItemSelecionado(item);
+        setObservacao("");
+        setQuantidadeSelecionada(1);
+    };
+
+    const fecharDetalheItem = () => {
+        setItemSelecionado(null);
+        setObservacao("");
+        setQuantidadeSelecionada(1);
+    };
+
+    const confirmarItemSelecionado = () => {
+        if (!itemSelecionado) return;
+        const carrinhoAtual = [...carrinho];
+        const index = carrinhoAtual.findIndex(item => item.id === itemSelecionado.id);
+        
+        if (index > -1) {
+            carrinhoAtual[index].quantidade += quantidadeSelecionada;
+            if (observacao.trim()) {
+                carrinhoAtual[index].observacao = observacao.trim();
+            }
+        } else {
+            carrinhoAtual.push({ ...itemSelecionado, quantidade: quantidadeSelecionada, observacao: observacao.trim() });
+        }
+        
+        setCarrinho(carrinhoAtual);
+        fecharDetalheItem();
     };
 
     const alterarQuantidade = (id, delta) => {
@@ -752,23 +787,33 @@ const App = () => {
     }, [view, checkoutForm.tipo, restaurante.raio_entrega]);
 
     const finalizarPedido = async () => {
-        if (!restaurante.is_aberto) {
-            alert("A loja está fechada no momento.");
+    if (enviandoPedido) return;
+
+    if (!restaurante.is_aberto) {
+        alert("A loja está fechada no momento.");
+        return;
+    }
+
+    if (checkoutForm.tipo === 'entrega') {
+        if (!clienteDados.endereco) {
+            alert("Cadastre seu endereço no seu Perfil para solicitar entrega.");
             return;
         }
-        if (checkoutForm.tipo === 'entrega') {
-            if (!clienteDados.endereco) {
-                alert("Cadastre seu endereço no seu Perfil para solicitar entrega.");
-                return;
-            }
-            if (erroCep && erroCep.includes('Não fazemos entrega')) {
-                alert("Seu endereço está fora da nossa área de entrega.");
-                return;
-            }
-        }
 
-        const totalCalc = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-        
+        if (erroCep && erroCep.includes('Não fazemos entrega')) {
+            alert("Seu endereço está fora da nossa área de entrega.");
+            return;
+        }
+    }
+
+    setEnviandoPedido(true);
+
+    try {
+        const totalCalc = carrinho.reduce(
+            (sum, item) => sum + (item.preco * item.quantidade),
+            0
+        );
+
         const novoPedido = {
             id: Math.random().toString(36).substring(2, 9),
             cliente_nome: clienteDados.nome,
@@ -779,40 +824,43 @@ const App = () => {
                 filial_id: restaurante.id,
                 filial_nome: restaurante.nome,
                 lanches: carrinho,
-                endereco: checkoutForm.tipo === 'entrega' ? clienteDados.endereco : 'Retirada',
-                referencia: checkoutForm.tipo === 'entrega' ? clienteDados.referencia : '',
+                endereco:
+                    checkoutForm.tipo === 'entrega'
+                        ? clienteDados.endereco
+                        : 'Retirada',
+                referencia:
+                    checkoutForm.tipo === 'entrega'
+                        ? clienteDados.referencia
+                        : '',
                 pagamento: checkoutForm.pagamento,
                 troco: checkoutForm.troco
             }
         };
 
         if (supabase) {
-             try {
-                  const { error } = await supabase.from('pedidos').insert([novoPedido]);
-                  if (error) {
-                      console.error("Erro insert pedido:", error);
-                      alert("Erro ao enviar pedido para o restaurante.");
-                      return;
-                  }
-             } catch (err) {
-                  console.error(err);
-                  return;
-             }
+            const { error } = await supabase
+                .from('pedidos')
+                .insert([novoPedido]);
+
+            if (error) {
+                console.error("Erro insert pedido:", error);
+                alert("Erro ao enviar pedido para o restaurante.");
+                return;
+            }
         }
-        
+
         setCarrinho([]);
         carregarMeusPedidos(clienteDados.celular);
         setView('pedidos');
         alert("Pedido enviado com sucesso!");
-    };
 
-    const moverPedidoStatus = async (id, novoStatus) => {
-        setPedidosAdmin(pedidosAdmin.map(p => p.id === id ? { ...p, status: novoStatus } : p));
-        if (supabase) {
-            await supabase.from('pedidos').update({ status: novoStatus }).eq('id', id);
-        }
-    };
-
+    } catch (err) {
+        console.error("Erro ao finalizar pedido:", err);
+        alert("Erro ao enviar pedido para o restaurante.");
+    } finally {
+        setEnviandoPedido(false);
+    }
+};
     const imprimirNota = (pedido) => {
         let info = {};
         if (typeof pedido.itens === 'string') {
@@ -1585,9 +1633,9 @@ const App = () => {
                                 </div>
                                 <div className="flex gap-4 overflow-x-auto pb-6 md:pb-8 snap-x md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:overflow-visible md:snap-none hide-scrollbar">
                                     {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id).map(p => (
-                                        <div key={p.id} className="w-[85vw] max-w-[300px] md:w-full md:max-w-none bg-[#363539] rounded-3xl overflow-hidden shadow-lg flex-none md:flex-auto border border-gray-700/50 snap-center hover:border-[#d79e51]/50 hover:shadow-[0_15px_35px_rgba(215,158,81,0.15)] hover:-translate-y-2 transition-all duration-300 group cursor-pointer" onClick={() => adicionarAoCarrinho(p)}>
+                                        <div key={p.id} className="w-[85vw] max-w-[300px] md:w-full md:max-w-none bg-[#363539] rounded-3xl overflow-hidden shadow-lg flex-none md:flex-auto border border-gray-700/50 snap-center hover:border-[#d79e51]/50 hover:shadow-[0_15px_35px_rgba(215,158,81,0.15)] hover:-translate-y-2 transition-all duration-300 group cursor-pointer" onClick={() => abrirDetalheItem(p)}>
                                             <div className="h-48 md:h-64 relative overflow-hidden">
-                                                <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=Foto'} alt={p.nome} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                                                <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=Foto'} alt={p.nome} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-[#2c2b2e] via-[#2c2b2e]/20 to-transparent opacity-90"></div>
                                                 <div className="absolute top-4 left-4 bg-[#d79e51] text-[#1a191c] text-[10px] md:text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
                                                     Mais Vendido
@@ -1598,7 +1646,7 @@ const App = () => {
                                                 <p className="text-gray-400 text-xs md:text-base mt-2 line-clamp-2 md:line-clamp-3 h-10 md:h-14">{p.descricao}</p>
                                                 <div className="mt-4 md:mt-6 flex items-end justify-between">
                                                     <p className="text-[#d79e51] font-black text-2xl md:text-3xl">R$ {p.preco.toFixed(2).replace('.',',')}</p>
-                                                    <button onClick={(e) => { e.stopPropagation(); adicionarAoCarrinho(p); }} className="absolute -top-7 right-6 w-14 h-14 bg-[#d79e51] rounded-full flex items-center justify-center text-[#1a191c] text-2xl shadow-[0_8px_20px_rgba(215,158,81,0.5)] group-hover:scale-110 active:scale-95 transition-all duration-300"><i className="fas fa-plus"></i></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); abrirDetalheItem(p); }} className="absolute -top-7 right-6 w-14 h-14 bg-[#d79e51] rounded-full flex items-center justify-center text-[#1a191c] text-2xl shadow-[0_8px_20px_rgba(215,158,81,0.5)] group-hover:scale-110 active:scale-95 transition-all duration-300"><i className="fas fa-plus"></i></button>
                                                 </div>
                                             </div>
                                         </div>
@@ -1639,7 +1687,7 @@ const App = () => {
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                                                 {prods.map(p => (
-                                                    <div key={p.id} className="bg-[#363539] rounded-3xl p-3 md:p-5 flex shadow-md border border-gray-700/50 h-full hover:border-[#d79e51]/50 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer" onClick={() => adicionarAoCarrinho(p)}>
+                                                    <div key={p.id} className="bg-[#363539] rounded-3xl p-3 md:p-5 flex shadow-md border border-gray-700/50 h-full hover:border-[#d79e51]/50 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer" onClick={() => abrirDetalheItem(p)}>
                                                         <div className="overflow-hidden rounded-2xl w-28 h-28 md:w-40 md:h-40 flex-shrink-0 relative">
                                                             <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
                                                             <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
@@ -1651,7 +1699,7 @@ const App = () => {
                                                             </div>
                                                             <div className="flex justify-between items-center mt-3 md:mt-4">
                                                                 <span className="text-[#d79e51] font-black text-lg md:text-2xl">R$ {p.preco.toFixed(2).replace('.',',')}</span>
-                                                                <button onClick={(e) => { e.stopPropagation(); adicionarAoCarrinho(p); }} className="w-9 h-9 md:w-12 md:h-12 border-2 border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#1a191c] transition-all duration-300 active:scale-90 group-hover:shadow-[0_5px_15px_rgba(215,158,81,0.3)]"><i className="fas fa-plus md:text-lg"></i></button>
+                                                                <button onClick={(e) => { e.stopPropagation(); abrirDetalheItem(p); }} className="w-9 h-9 md:w-12 md:h-12 border-2 border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#1a191c] transition-all duration-300 active:scale-90 group-hover:shadow-[0_5px_15px_rgba(215,158,81,0.3)]"><i className="fas fa-plus md:text-lg"></i></button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1775,8 +1823,8 @@ const App = () => {
                                             </div>
                                         </div>
 
-                                        <button onClick={finalizarPedido} className="w-full mt-8 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-[#1a191c] font-black tracking-widest text-lg md:text-xl py-4 md:py-6 rounded-2xl md:rounded-3xl active:scale-95 transition-all duration-300 flex justify-center items-center shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_40px_rgba(16,185,129,0.4)]">
-                                            <i className="fas fa-check-circle mr-3 text-2xl"></i> CONFIRMAR PEDIDO
+                                        <button onClick={finalizarPedido} disabled={enviandoPedido} className={`w-full mt-8 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-[#1a191c] font-black tracking-widest text-lg md:text-xl py-4 md:py-6 rounded-2xl md:rounded-3xl active:scale-95 transition-all duration-300 flex justify-center items-center shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_40px_rgba(16,185,129,0.4)] ${enviandoPedido ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                                            <i className={`fas ${enviandoPedido ? 'fa-spinner fa-spin' : 'fa-check-circle'} mr-3 text-2xl`}></i> {enviandoPedido ? 'ENVIANDO...' : 'CONFIRMAR PEDIDO'}
                                         </button>
                                     </div>
                                 </div>
@@ -1992,6 +2040,60 @@ const App = () => {
                     ::-webkit-scrollbar-thumb { background: #363539; border-radius: 4px; }
                     ::-webkit-scrollbar-thumb:hover { background: #d79e51; }
                 `}} />
+
+                {/* Modal de Detalhe do Produto */}
+                {itemSelecionado && (
+                    <div className="fixed inset-0 bg-black/80 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-[#242326] border border-gray-700 rounded-3xl w-full max-w-lg flex flex-col max-h-[90vh] shadow-[0_15px_50px_rgba(0,0,0,0.6)] overflow-hidden animate-fade-in relative">
+                            
+                            <button onClick={fecharDetalheItem} className="absolute top-4 right-4 w-10 h-10 bg-black/50 hover:bg-black text-white rounded-full flex items-center justify-center z-10 transition-colors backdrop-blur-md">
+                                <i className="fas fa-times text-lg"></i>
+                            </button>
+
+                            <div className="w-full h-48 md:h-64 relative bg-gray-900 flex-shrink-0">
+                                <img src={itemSelecionado.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={itemSelecionado.nome} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-[#242326] to-transparent"></div>
+                            </div>
+
+                            <div className="p-5 md:p-8 overflow-y-auto flex-1 custom-scrollbar">
+                                <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider mb-2">{itemSelecionado.nome}</h2>
+                                <p className="text-[#d79e51] font-black text-2xl mb-4">R$ {Number(itemSelecionado.preco).toFixed(2).replace('.', ',')}</p>
+                                
+                                {itemSelecionado.descricao && (
+                                    <p className="text-gray-300 text-sm md:text-base leading-relaxed mb-6 bg-[#1a191c] p-4 rounded-2xl border border-gray-800">
+                                        {itemSelecionado.descricao}
+                                    </p>
+                                )}
+
+                                <div className="mb-6 flex items-center justify-between bg-[#1a191c] p-4 rounded-2xl border border-gray-800 shadow-sm">
+                                    <span className="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-widest">Quantidade</span>
+                                    <div className="flex items-center space-x-1 md:space-x-2 bg-[#242326] rounded-xl p-1 border border-gray-700 shadow-inner">
+                                        <button onClick={() => setQuantidadeSelecionada(q => Math.max(1, q - 1))} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">-</button>
+                                        <span className="text-white font-black w-8 md:w-10 text-center md:text-lg">{quantidadeSelecionada}</span>
+                                        <button onClick={() => setQuantidadeSelecionada(q => q + 1)} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">+</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 uppercase tracking-widest"><i className="far fa-comment-dots mr-2"></i>Observação</label>
+                                    <textarea
+                                        value={observacao}
+                                        onChange={(e) => setObservacao(e.target.value)}
+                                        placeholder="Ex.: sem cebola, molho separado, bem passado..."
+                                        rows="3"
+                                        className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-2xl px-5 py-4 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all resize-none text-sm md:text-base"
+                                    ></textarea>
+                                </div>
+                            </div>
+
+                            <div className="p-5 md:p-6 border-t border-gray-800 bg-[#1f1e22] flex-shrink-0">
+                                <button onClick={confirmarItemSelecionado} className="w-full bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] font-black text-lg py-4 rounded-2xl shadow-[0_10px_30px_rgba(215,158,81,0.3)] active:scale-95 transition-all flex items-center justify-center tracking-wider">
+                                    <i className="fas fa-shopping-bag mr-3"></i> ADICIONAR AO CARRINHO
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
