@@ -92,6 +92,8 @@ const App = () => {
     
     const [promoForm, setPromoForm] = useState({ titulo: '', mensagem: '', webhookUrl: '' });
     const [webhookEditavel, setWebhookEditavel] = useState(true);
+    const [webhookLoading, setWebhookLoading] = useState(false);
+    const [webhookSalvando, setWebhookSalvando] = useState(false);
     
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
@@ -420,6 +422,75 @@ const App = () => {
         }
     };
 
+    const carregarWebhookRestaurante = async (restauranteId) => {
+        if (!supabase || !restauranteId) {
+            setPromoForm(prev => ({ ...prev, webhookUrl: '' }));
+            setWebhookEditavel(true);
+            return;
+        }
+
+        setWebhookLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('integracoes_restaurante')
+                .select('n8n_webhook_url')
+                .eq('restaurante_id', restauranteId)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            const url = (data?.n8n_webhook_url || '').trim();
+            setPromoForm(prev => ({ ...prev, webhookUrl: url }));
+            setWebhookEditavel(!url);
+        } catch (err) {
+            console.error('Erro ao carregar webhook do restaurante:', err);
+            setPromoForm(prev => ({ ...prev, webhookUrl: '' }));
+            setWebhookEditavel(true);
+        } finally {
+            setWebhookLoading(false);
+        }
+    };
+
+    const salvarWebhookRestaurante = async () => {
+        if (!supabase || !idAdminLogado || webhookSalvando) return;
+
+        const url = promoForm.webhookUrl.trim();
+        if (!url) {
+            alert('Informe a URL do Webhook do N8N.');
+            return;
+        }
+
+        try {
+            const parsed = new URL(url);
+            if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Protocolo inválido');
+        } catch (e) {
+            alert('Digite uma URL válida começando com http:// ou https://');
+            return;
+        }
+
+        setWebhookSalvando(true);
+        try {
+            const { error } = await supabase
+                .from('integracoes_restaurante')
+                .upsert({
+                    restaurante_id: idAdminLogado,
+                    n8n_webhook_url: url,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'restaurante_id' });
+
+            if (error) throw error;
+
+            setPromoForm(prev => ({ ...prev, webhookUrl: url }));
+            setWebhookEditavel(false);
+            alert('Webhook salvo para esta franquia com sucesso!');
+        } catch (err) {
+            console.error('Erro ao salvar webhook do restaurante:', err);
+            alert(`Não foi possível salvar o webhook. ${err.message || ''}`.trim());
+        } finally {
+            setWebhookSalvando(false);
+        }
+    };
+
     const dispararPromocao = async () => {
         if (!promoForm.webhookUrl || !promoForm.titulo || !promoForm.mensagem) {
             alert("Preencha a URL do Webhook, Título e Mensagem da promoção.");
@@ -432,6 +503,7 @@ const App = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     loja: restaurante.nome,
+                    restaurante_id: idAdminLogado || restaurante.id,
                     titulo: promoForm.titulo,
                     mensagem: promoForm.mensagem,
                     data_disparo: new Date().toISOString()
@@ -440,7 +512,7 @@ const App = () => {
             
             if (response.ok) {
                 alert("Promoção disparada para o N8N com sucesso!");
-                setPromoForm({...promoForm, titulo: '', mensagem: ''});
+                setPromoForm(prev => ({ ...prev, titulo: '', mensagem: '' }));
             } else {
                 alert("Erro ao disparar promoção. O N8N retornou um erro.");
             }
@@ -847,11 +919,8 @@ const App = () => {
             setClienteDados({ nome, celular: cel, cep, endereco: end, referencia: ref });
         }
         
-        const savedWebhook = localStorage.getItem('n8n_webhook_url');
-        if (savedWebhook) {
-            setPromoForm(prev => ({ ...prev, webhookUrl: savedWebhook }));
-            setWebhookEditavel(false);
-        }
+        // O webhook não é mais salvo no localStorage.
+        // Cada restaurante carrega sua própria URL privada do Supabase após o login administrativo.
     }, []);
 
     useEffect(() => {
@@ -1021,6 +1090,18 @@ const App = () => {
         setSeletorLojaAberto(false);
         setView('home');
     };
+
+    useEffect(() => {
+        if (!supabase || !isAdmin || !idAdminLogado) {
+            if (!isAdmin) {
+                setPromoForm(prev => ({ ...prev, webhookUrl: '' }));
+                setWebhookEditavel(true);
+            }
+            return;
+        }
+
+        carregarWebhookRestaurante(idAdminLogado);
+    }, [supabase, isAdmin, idAdminLogado]);
 
     const carregarMeusPedidos = async () => {
         if (!supabase) return;
@@ -2008,17 +2089,18 @@ const App = () => {
                                         <div>
                                             <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Webhook URL (N8N) *</label>
                                             <div className="flex gap-2">
-                                                <input type="text" value={promoForm.webhookUrl} readOnly={!webhookEditavel} onChange={(e) => setPromoForm({...promoForm, webhookUrl: e.target.value})} className={`w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm ${!webhookEditavel ? 'opacity-50 cursor-not-allowed' : ''}`} placeholder="https://seu-n8n.com/webhook/..." />
+                                                <input type="text" value={promoForm.webhookUrl} readOnly={!webhookEditavel || webhookLoading || webhookSalvando} onChange={(e) => setPromoForm({...promoForm, webhookUrl: e.target.value})} className={`w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm ${(!webhookEditavel || webhookLoading || webhookSalvando) ? 'opacity-50 cursor-not-allowed' : ''}`} placeholder={webhookLoading ? "Carregando webhook da franquia..." : "https://seu-n8n.com/webhook/..."} />
                                                 {webhookEditavel ? (
-                                                    <button onClick={() => { setWebhookEditavel(false); localStorage.setItem('n8n_webhook_url', promoForm.webhookUrl); }} className="px-4 py-2 bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] rounded-lg font-bold text-xs shadow-md transition-all whitespace-nowrap">
-                                                        Confirmar
+                                                    <button disabled={webhookLoading || webhookSalvando} onClick={salvarWebhookRestaurante} className="px-4 py-2 bg-[#d79e51] hover:bg-[#e8b776] disabled:opacity-50 disabled:cursor-not-allowed text-[#1a191c] rounded-lg font-bold text-xs shadow-md transition-all whitespace-nowrap">
+                                                        {webhookSalvando ? <><i className="fas fa-spinner fa-spin mr-2"></i>Salvando</> : 'Confirmar'}
                                                     </button>
                                                 ) : (
-                                                    <button onClick={() => { if(window.confirm("Deseja realmente editar a URL do Webhook?")) setWebhookEditavel(true); }} className="px-4 py-2 bg-[#363539] hover:bg-gray-700 text-white rounded-lg font-bold text-xs shadow-md transition-all whitespace-nowrap border border-gray-600">
+                                                    <button disabled={webhookLoading} onClick={() => { if(window.confirm("Deseja realmente editar a URL do Webhook desta franquia?")) setWebhookEditavel(true); }} className="px-4 py-2 bg-[#363539] hover:bg-gray-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs shadow-md transition-all whitespace-nowrap border border-gray-600">
                                                         Editar
                                                     </button>
                                                 )}
                                             </div>
+                                            <p className="text-[10px] text-gray-500 mt-2">A URL é salva de forma privada no Supabase e fica vinculada à franquia logada.</p>
                                         </div>
                                         <div>
                                             <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Título da Promoção *</label>
