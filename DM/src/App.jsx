@@ -81,6 +81,8 @@ const App = () => {
             return true;
         }
     });
+    const [seletorLojaAberto, setSeletorLojaAberto] = useState(false);
+    const seletorLojaRef = useRef(null);
     const [novaLojaForm, setNovaLojaForm] = useState({ nome: '', tempo_entrega: '30-45 min', raio_entrega: 5 });
     
     const [financeiroForm, setFinanceiroForm] = useState({ restaurante_id: '', tipo: 'entrada', valor: '', descricao: '' });
@@ -973,6 +975,52 @@ const App = () => {
 
         carregarProdutosLoja(restaurante.id, true);
     }, [supabase, restaurante.id, isAdmin]);
+
+    // Fecha o seletor de franquias ao clicar fora dele ou pressionar ESC.
+    useEffect(() => {
+        if (!seletorLojaAberto) return;
+
+        const fecharAoClicarFora = (event) => {
+            if (seletorLojaRef.current && !seletorLojaRef.current.contains(event.target)) {
+                setSeletorLojaAberto(false);
+            }
+        };
+
+        const fecharComEsc = (event) => {
+            if (event.key === 'Escape') setSeletorLojaAberto(false);
+        };
+
+        document.addEventListener('mousedown', fecharAoClicarFora);
+        document.addEventListener('touchstart', fecharAoClicarFora, { passive: true });
+        document.addEventListener('keydown', fecharComEsc);
+
+        return () => {
+            document.removeEventListener('mousedown', fecharAoClicarFora);
+            document.removeEventListener('touchstart', fecharAoClicarFora);
+            document.removeEventListener('keydown', fecharComEsc);
+        };
+    }, [seletorLojaAberto]);
+
+    const selecionarLojaPeloTopo = (loja) => {
+        const mudouDeLoja = String(loja.id) !== String(restaurante.id);
+
+        if (mudouDeLoja && carrinho.length > 0) {
+            const confirmarTroca = window.confirm(
+                'Ao trocar de unidade, os itens atuais do carrinho serão removidos. Deseja continuar?'
+            );
+            if (!confirmarTroca) return;
+            setCarrinho([]);
+        }
+
+        if (mudouDeLoja) {
+            setProdutos([]);
+            setRestaurante(loja);
+            localStorage.setItem('loja_selecionada', loja.id);
+        }
+
+        setSeletorLojaAberto(false);
+        setView('home');
+    };
 
     const carregarMeusPedidos = async () => {
         if (!supabase) return;
@@ -2116,9 +2164,62 @@ const App = () => {
                 {/* Header fixo da loja */}
                 <div className="bg-[#1a191c] flex flex-col sm:flex-row justify-center sm:justify-between items-stretch sm:items-center gap-2 sm:gap-3 py-2.5 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 border-b border-gray-800 text-[11px] sm:text-xs md:text-sm shadow-md z-20">
                     {lojas.length > 1 && (
-                        <button onClick={() => setView('selecionar_loja')} className="text-white font-bold flex items-center justify-center sm:justify-start hover:text-[#d79e51] transition-colors text-sm md:text-base min-w-0 truncate">
-                            {restaurante.nome} <i className="fas fa-chevron-down ml-2 text-[10px] md:text-xs"></i>
-                        </button>
+                        <div ref={seletorLojaRef} className="relative w-full sm:w-auto">
+                            <button
+                                type="button"
+                                onClick={() => setSeletorLojaAberto(prev => !prev)}
+                                aria-expanded={seletorLojaAberto}
+                                aria-haspopup="listbox"
+                                className="w-full sm:w-auto text-white font-bold flex items-center justify-center sm:justify-start hover:text-[#d79e51] transition-colors text-sm md:text-base min-w-0 px-2 py-1.5 rounded-xl hover:bg-[#242326]"
+                            >
+                                <i className="fas fa-store mr-2 text-[#d79e51] flex-shrink-0"></i>
+                                <span className="truncate">{restaurante.nome}</span>
+                                <i className={`fas fa-chevron-down ml-2 text-[10px] md:text-xs transition-transform duration-200 flex-shrink-0 ${seletorLojaAberto ? 'rotate-180' : ''}`}></i>
+                            </button>
+
+                            {seletorLojaAberto && (
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 w-[calc(100vw-24px)] sm:w-80 max-w-[360px] bg-[#242326] border border-gray-700 rounded-2xl shadow-[0_18px_45px_rgba(0,0,0,0.55)] overflow-hidden z-[100]">
+                                    <div className="px-4 py-3 border-b border-gray-800 bg-[#1f1e22]">
+                                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-[0.18em]">Escolha a unidade</p>
+                                    </div>
+
+                                    <div className="max-h-72 overflow-y-auto dogs-touch-scroll" role="listbox" aria-label="Restaurantes disponíveis">
+                                        {lojas.map(loja => {
+                                            const selecionada = String(loja.id) === String(restaurante.id);
+
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={loja.id}
+                                                    role="option"
+                                                    aria-selected={selecionada}
+                                                    onClick={() => selecionarLojaPeloTopo(loja)}
+                                                    className={`w-full flex items-center justify-between gap-4 text-left px-4 py-4 border-b border-gray-800 last:border-b-0 transition-colors ${selecionada ? 'bg-[#d79e51]/10' : 'hover:bg-[#363539]'}`}
+                                                >
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className={`font-bold text-sm md:text-base truncate ${selecionada ? 'text-[#d79e51]' : 'text-white'}`}>
+                                                            {loja.nome}
+                                                        </div>
+                                                        {loja.cep && (
+                                                            <div className="text-gray-500 text-xs mt-1 truncate">
+                                                                <i className="fas fa-map-marker-alt mr-1"></i>
+                                                                CEP {loja.cep}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {selecionada ? (
+                                                        <i className="fas fa-check-circle text-[#d79e51] flex-shrink-0"></i>
+                                                    ) : (
+                                                        <i className="fas fa-chevron-right text-gray-600 text-xs flex-shrink-0"></i>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
                     <div className="w-full sm:w-auto flex flex-wrap justify-center items-center bg-[#242326] px-3 sm:px-4 py-1.5 md:py-2 md:px-5 rounded-2xl sm:rounded-full border border-gray-800 shadow-inner">
                         <span className="text-gray-300 flex items-center font-medium">
