@@ -11,6 +11,8 @@ const App = () => {
         is_aberto: true,
         tempo_entrega: '30-45 min',
         raio_entrega: 5,
+        taxa_entrega: 0,
+        whatsapp: '',
         foto_capa_url: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
         logo_url: '',
         cep: '',
@@ -30,6 +32,10 @@ const App = () => {
     const [adminView, setAdminView] = useState('pedidos');
     const [adminMenuOpen, setAdminMenuOpen] = useState(false);
     const [adminEmail, setAdminEmail] = useState('');
+    const [adminRestauranteId, setAdminRestauranteId] = useState(null);
+    const [adminRole, setAdminRole] = useState('');
+    const [adminLoginLoading, setAdminLoginLoading] = useState(false);
+    const [authUserId, setAuthUserId] = useState(null);
     
     const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
     const [produtoEditando, setProdutoEditando] = useState(null);
@@ -43,6 +49,10 @@ const App = () => {
     const [observacao, setObservacao] = useState("");
     const [quantidadeSelecionada, setQuantidadeSelecionada] = useState(1);
     const [enviandoPedido, setEnviandoPedido] = useState(false);
+    const [modalRejeicao, setModalRejeicao] = useState({ aberto: false, pedidoId: null, motivo: '' });
+    const [alertaNovoPedido, setAlertaNovoPedido] = useState(null);
+    const pedidosNovosConhecidosRef = useRef(new Set());
+    const alertasInicializadosRef = useRef(false);
     
     const [cepLojaBuscando, setCepLojaBuscando] = useState(false);
     const [erroCepLoja, setErroCepLoja] = useState('');
@@ -60,14 +70,72 @@ const App = () => {
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
 
-    const isMatriz = adminEmail === 'dogsdomirso.ls@outlook.com';
+    const isMatriz = adminRole === 'matriz' || adminEmail === 'dogsdomirso.ls@outlook.com';
     const isFranquia2 = adminEmail === 'dogsdomirso.ls2@outlook.com';
     
     const lojaMatriz = lojas.length > 0 ? lojas[0] : null;
     const lojaFranquia = lojas.length > 1 ? lojas[1] : (lojas.length > 0 ? lojas[0] : null);
     
-    const adminLojaAtual = isFranquia2 ? lojaFranquia : lojaMatriz;
+    const adminLojaAtual = adminRestauranteId
+        ? (lojas.find(l => String(l.id) === String(adminRestauranteId)) || lojaMatriz)
+        : (isFranquia2 ? lojaFranquia : lojaMatriz);
     const idAdminLogado = adminLojaAtual ? adminLojaAtual.id : null;
+
+    const normalizarObservacao = (valor = '') => valor.trim().replace(/\s+/g, ' ').toLowerCase();
+    const criarCartKey = (produtoId, obs = '') => `${produtoId}__${normalizarObservacao(obs)}__${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    const tocarSomNovoPedido = () => {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+            osc.onended = () => ctx.close();
+        } catch (e) {
+            console.warn('Não foi possível tocar o alerta sonoro.', e);
+        }
+    };
+
+    const garantirSessaoCliente = async () => {
+        if (!supabase) return null;
+        const { data: sessaoAtual } = await supabase.auth.getSession();
+        if (sessaoAtual?.session?.user && !sessaoAtual.session.user.email) {
+            setAuthUserId(sessaoAtual.session.user.id);
+            return sessaoAtual.session.user;
+        }
+        if (sessaoAtual?.session?.user && sessaoAtual.session.user.email && !isAdmin) {
+            setAuthUserId(sessaoAtual.session.user.id);
+            return sessaoAtual.session.user;
+        }
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error) {
+            console.error('Erro ao criar sessão anônima:', error);
+            throw new Error('Não foi possível criar uma sessão segura para o cliente. Ative Anonymous Sign-Ins no Supabase Auth.');
+        }
+        setAuthUserId(data.user?.id || null);
+        return data.user || null;
+    };
+
+    const abrirWhatsAppLoja = (numero, pedidoId = '') => {
+        const digits = String(numero || '').replace(/\D/g, '');
+        if (!digits) {
+            alert('O WhatsApp da loja ainda não foi configurado.');
+            return;
+        }
+        const numeroBrasil = digits.startsWith('55') ? digits : `55${digits}`;
+        const mensagem = pedidoId ? `Olá! Gostaria de falar sobre o pedido #${String(pedidoId).substring(0, 6).toUpperCase()}.` : 'Olá! Gostaria de falar com a loja.';
+        window.open(`https://wa.me/${numeroBrasil}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener,noreferrer');
+    };
 
     const calcularDistancia = (lat1, lon1, lat2, lon2) => {
         const R = 6371;
@@ -168,6 +236,8 @@ const App = () => {
                 nome: novaLojaForm.nome,
                 tempo_entrega: novaLojaForm.tempo_entrega,
                 raio_entrega: novaLojaForm.raio_entrega,
+                taxa_entrega: 0,
+                whatsapp: '',
                 is_aberto: true
             };
             const { data, error } = await supabase.from('restaurante').insert([payload]).select();
@@ -364,14 +434,14 @@ const App = () => {
     };
 
     const adicionarAoCarrinho = (produto) => {
-        const carrinhoAtual = [...carrinho];
-        const index = carrinhoAtual.findIndex(item => item.id === produto.id);
-        if (index > -1) {
-            carrinhoAtual[index].quantidade += 1;
-        } else {
-            carrinhoAtual.push({ ...produto, quantidade: 1, observacao: '' });
-        }
-        setCarrinho(carrinhoAtual);
+        const obsNormalizada = '';
+        setCarrinho(prev => {
+            const index = prev.findIndex(item => item.id === produto.id && normalizarObservacao(item.observacao) === obsNormalizada);
+            if (index > -1) {
+                return prev.map((item, i) => i === index ? { ...item, quantidade: item.quantidade + 1 } : item);
+            }
+            return [...prev, { ...produto, cartKey: criarCartKey(produto.id, ''), quantidade: 1, observacao: '' }];
+        });
     };
 
     const abrirDetalheItem = (item) => {
@@ -388,41 +458,44 @@ const App = () => {
 
     const confirmarItemSelecionado = () => {
         if (!itemSelecionado) return;
-        const carrinhoAtual = [...carrinho];
-        const index = carrinhoAtual.findIndex(item => item.id === itemSelecionado.id);
-        
-        if (index > -1) {
-            carrinhoAtual[index].quantidade += quantidadeSelecionada;
-            if (observacao.trim()) {
-                carrinhoAtual[index].observacao = observacao.trim();
+        const obsFinal = observacao.trim();
+        const obsNormalizada = normalizarObservacao(obsFinal);
+
+        setCarrinho(prev => {
+            const index = prev.findIndex(item =>
+                item.id === itemSelecionado.id &&
+                normalizarObservacao(item.observacao) === obsNormalizada
+            );
+
+            if (index > -1) {
+                return prev.map((item, i) =>
+                    i === index ? { ...item, quantidade: item.quantidade + quantidadeSelecionada } : item
+                );
             }
-        } else {
-            carrinhoAtual.push({ ...itemSelecionado, quantidade: quantidadeSelecionada, observacao: observacao.trim() });
-        }
-        
-        setCarrinho(carrinhoAtual);
+
+            return [
+                ...prev,
+                {
+                    ...itemSelecionado,
+                    cartKey: criarCartKey(itemSelecionado.id, obsFinal),
+                    quantidade: quantidadeSelecionada,
+                    observacao: obsFinal
+                }
+            ];
+        });
+
         fecharDetalheItem();
     };
 
-    const alterarQuantidade = (id, delta) => {
-        const carrinhoAtual = [...carrinho];
-        const index = carrinhoAtual.findIndex(item => item.id === id);
-        if (index > -1) {
-            carrinhoAtual[index].quantidade += delta;
-            if (carrinhoAtual[index].quantidade <= 0) {
-                carrinhoAtual.splice(index, 1);
-            }
-            setCarrinho(carrinhoAtual);
-        }
+    const alterarQuantidade = (cartKey, delta) => {
+        setCarrinho(prev => prev
+            .map(item => item.cartKey === cartKey ? { ...item, quantidade: item.quantidade + delta } : item)
+            .filter(item => item.quantidade > 0)
+        );
     };
 
-    const atualizarObs = (id, obs) => {
-        const carrinhoAtual = [...carrinho];
-        const index = carrinhoAtual.findIndex(item => item.id === id);
-        if (index > -1) {
-            carrinhoAtual[index].observacao = obs;
-            setCarrinho(carrinhoAtual);
-        }
+    const atualizarObs = (cartKey, obs) => {
+        setCarrinho(prev => prev.map(item => item.cartKey === cartKey ? { ...item, observacao: obs } : item));
     };
 
     const salvarPerfil = async () => {
@@ -430,23 +503,38 @@ const App = () => {
             alert('Preencha nome e celular.');
             return;
         }
-        localStorage.setItem('cliente_nome', clienteDados.nome);
-        localStorage.setItem('cliente_celular', clienteDados.celular);
-        localStorage.setItem('cliente_cep', clienteDados.cep || '');
-        localStorage.setItem('cliente_endereco', clienteDados.endereco || '');
-        localStorage.setItem('cliente_referencia', clienteDados.referencia || '');
-        setClienteAuth(true);
-        
-        if (supabase) {
-             await supabase.from('clientes').upsert({ celular: clienteDados.celular, nome: clienteDados.nome }, { onConflict: 'celular' });
-             carregarMeusPedidos(clienteDados.celular);
-        }
-        
-        if (redirectPosLogin) {
-            setView(redirectPosLogin);
-            setRedirectPosLogin(null);
-        } else {
-            setView('home');
+
+        try {
+            const usuario = await garantirSessaoCliente();
+            if (!usuario) throw new Error('Sessão do cliente indisponível.');
+
+            localStorage.setItem('cliente_nome', clienteDados.nome);
+            localStorage.setItem('cliente_celular', clienteDados.celular);
+            localStorage.setItem('cliente_cep', clienteDados.cep || '');
+            localStorage.setItem('cliente_endereco', clienteDados.endereco || '');
+            localStorage.setItem('cliente_referencia', clienteDados.referencia || '');
+            setClienteAuth(true);
+            setAuthUserId(usuario.id);
+
+            if (supabase) {
+                const { error } = await supabase.from('clientes').upsert({
+                    user_id: usuario.id,
+                    celular: clienteDados.celular,
+                    nome: clienteDados.nome
+                }, { onConflict: 'celular' });
+                if (error) console.warn('Não foi possível sincronizar o perfil do cliente:', error);
+                carregarMeusPedidos();
+            }
+
+            if (redirectPosLogin) {
+                setView(redirectPosLogin);
+                setRedirectPosLogin(null);
+            } else {
+                setView('home');
+            }
+        } catch (err) {
+            console.error(err);
+            alert(err.message || 'Não foi possível salvar o perfil com segurança.');
         }
     };
 
@@ -498,7 +586,7 @@ const App = () => {
                      const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6Y3JmbnlmaXFzZnJ3c3dsdnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMTQ1NjksImV4cCI6MjA5NDc5MDU2OX0.es2duCl9cJQjSH787kCxtUbl-UqqcwedvKF5lf-uc7s';
                      
                      const options = {
-                         auth: { persistSession: false },
+                         auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
                          global: { fetch: window.fetch.bind(window) }
                      };
                      
@@ -511,7 +599,7 @@ const App = () => {
                  const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6Y3JmbnlmaXFzZnJ3c3dsdnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMTQ1NjksImV4cCI6MjA5NDc5MDU2OX0.es2duCl9cJQjSH787kCxtUbl-UqqcwedvKF5lf-uc7s';
                  
                  const options = {
-                     auth: { persistSession: false },
+                     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
                      global: { fetch: window.fetch.bind(window) }
                  };
                  
@@ -532,18 +620,50 @@ const App = () => {
             setClienteDados({ nome, celular: cel, cep, endereco: end, referencia: ref });
         }
         
-        if (localStorage.getItem('isAdminBypass') === 'true') {
-            setIsAdmin(true);
-            const savedEmail = localStorage.getItem('adminEmail');
-            if (savedEmail) setAdminEmail(savedEmail);
-        }
-        
         const savedWebhook = localStorage.getItem('n8n_webhook_url');
         if (savedWebhook) {
             setPromoForm(prev => ({ ...prev, webhookUrl: savedWebhook }));
             setWebhookEditavel(false);
         }
     }, []);
+
+    useEffect(() => {
+        if (!supabase) return;
+        let ativo = true;
+
+        const aplicarSessao = (session) => {
+            if (!ativo) return;
+            const user = session?.user || null;
+            setAuthUserId(user?.id || null);
+
+            if (user?.email) {
+                const meta = user.app_metadata || {};
+                setAdminEmail(user.email);
+                setAdminRole(meta.role || 'admin');
+                setAdminRestauranteId(meta.restaurante_id || null);
+                setIsAdmin(true);
+            } else {
+                setIsAdmin(false);
+                setAdminEmail('');
+                setAdminRole('');
+                setAdminRestauranteId(null);
+            }
+        };
+
+        supabase.auth.getSession().then(({ data }) => {
+            aplicarSessao(data?.session || null);
+            if (!data?.session) {
+                garantirSessaoCliente().catch(err => console.warn(err.message));
+            }
+        });
+
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => aplicarSessao(session));
+
+        return () => {
+            ativo = false;
+            listener?.subscription?.unsubscribe();
+        };
+    }, [supabase]);
 
     useEffect(() => {
         if (!supabase) return;
@@ -565,9 +685,9 @@ const App = () => {
                     setLojas(restData);
                     
                     if (isAdmin) {
-                        const emailAtivo = adminEmail || localStorage.getItem('adminEmail');
-                        const adminEhFranquia = emailAtivo === 'dogsdomirso.ls2@outlook.com';
-                        const lojaGestor = adminEhFranquia ? (restData.length > 1 ? restData[1] : restData[0]) : restData[0];
+                        const lojaGestor = adminRestauranteId
+                            ? (restData.find(r => String(r.id) === String(adminRestauranteId)) || restData[0])
+                            : (isFranquia2 ? (restData.length > 1 ? restData[1] : restData[0]) : restData[0]);
                         setRestaurante(lojaGestor);
                     } else {
                         const selectedId = localStorage.getItem('loja_selecionada');
@@ -586,7 +706,7 @@ const App = () => {
                     carregarPedidosAdminLocal();
                     carregarMovimentacoes();
                 }
-                if (clienteAuth) carregarMeusPedidos(clienteDados.celular);
+                if (clienteAuth) carregarMeusPedidos();
 
             } catch (err) {
                 console.error("Erro ao carregar do banco:", err);
@@ -620,45 +740,81 @@ const App = () => {
                 try { supabase.removeChannel(channel); } catch (e) {}
             }
         };
-    }, [supabase, isAdmin, clienteAuth, clienteDados.celular, adminEmail]);
+    }, [supabase, isAdmin, clienteAuth, clienteDados.celular, adminEmail, adminRestauranteId]);
 
-    const carregarMeusPedidos = (celular) => {
+    const carregarMeusPedidos = async () => {
         if (!supabase) return;
-        supabase.from('pedidos').select('*').eq('cliente_celular', celular).order('created_at', { ascending: false }).then(({ data }) => {
-            if (data) setMeusPedidos(data);
-        });
-    };
+        try {
+            const { data: sessaoAtual } = await supabase.auth.getSession();
+            const userId = sessaoAtual?.session?.user?.id || authUserId;
+            if (!userId) return;
 
-    const loginAdminForm = (e) => {
-        e.preventDefault();
-        const email = e.target.email.value;
-        const senha = e.target.senha.value;
-        
-        if(email === 'dogsdomirso.ls@outlook.com' && senha === 'K1nder$202525') {
-            localStorage.setItem('isAdminBypass', 'true');
-            localStorage.setItem('adminEmail', email);
-            setAdminEmail(email);
-            setIsAdmin(true);
-            carregarPedidosAdminLocal();
-            carregarMovimentacoes();
-        } else if(email === 'dogsdomirso.ls2@outlook.com' && senha === 'Dogs2@2026') {
-            localStorage.setItem('isAdminBypass', 'true');
-            localStorage.setItem('adminEmail', email);
-            setAdminEmail(email);
-            setIsAdmin(true);
-            carregarPedidosAdminLocal();
-            carregarMovimentacoes();
-        } else {
-            alert("Credenciais Inválidas");
+            const { data, error } = await supabase
+                .from('pedidos')
+                .select('*')
+                .eq('cliente_user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            if (data) setMeusPedidos(data);
+        } catch (err) {
+            console.error('Erro ao carregar pedidos do cliente:', err);
         }
     };
 
-    const sairAdmin = () => {
-        localStorage.removeItem('isAdminBypass');
-        localStorage.removeItem('adminEmail');
+    useEffect(() => {
+        if (clienteAuth && authUserId && supabase && !isAdmin) {
+            carregarMeusPedidos();
+        }
+    }, [clienteAuth, authUserId, supabase, isAdmin]);
+
+    const loginAdminForm = async (e) => {
+        e.preventDefault();
+        if (!supabase || adminLoginLoading) return;
+
+        const email = e.target.email.value.trim();
+        const senha = e.target.senha.value;
+        setAdminLoginLoading(true);
+
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+            if (error) throw error;
+
+            const user = data.user;
+            const meta = user?.user_metadata || {};
+            setAdminEmail(user?.email || email);
+            setAdminRole(meta.role || 'admin');
+            setAdminRestauranteId(meta.restaurante_id || null);
+            setIsAdmin(true);
+            setView('home');
+
+            if (!meta.restaurante_id) {
+                console.warn('Administrador autenticado sem restaurante_id em user_metadata. Configure-o no Supabase Auth.');
+            }
+        } catch (err) {
+            console.error('Falha no login administrativo:', err);
+            alert('Credenciais inválidas ou usuário administrativo não configurado no Supabase Auth.');
+        } finally {
+            setAdminLoginLoading(false);
+        }
+    };
+
+    const sairAdmin = async () => {
+        try {
+            if (supabase) await supabase.auth.signOut();
+        } catch (e) {
+            console.warn('Erro ao encerrar sessão administrativa:', e);
+        }
         setAdminEmail('');
+        setAdminRole('');
+        setAdminRestauranteId(null);
         setIsAdmin(false);
         setView('home');
+        try {
+            await garantirSessaoCliente();
+        } catch (e) {
+            console.warn(e.message);
+        }
     };
 
     const excluirProduto = (id) => {
@@ -743,6 +899,8 @@ const App = () => {
                 nome: restaurante.nome,
                 tempo_entrega: restaurante.tempo_entrega,
                 raio_entrega: restaurante.raio_entrega,
+                taxa_entrega: Number(restaurante.taxa_entrega || 0),
+                whatsapp: restaurante.whatsapp || '',
                 foto_capa_url: restaurante.foto_capa_url,
                 logo_url: restaurante.logo_url,
                 cep: restaurante.cep,
@@ -842,8 +1000,18 @@ const App = () => {
     const finalizarPedido = async () => {
         if (enviandoPedido) return;
 
+        if (!supabase) {
+            alert('Sem conexão com o restaurante. O pedido NÃO foi enviado. Verifique sua internet e tente novamente.');
+            return;
+        }
+
         if (!restaurante.is_aberto) {
             alert("A loja está fechada no momento.");
+            return;
+        }
+
+        if (carrinho.length === 0) {
+            alert('Seu carrinho está vazio.');
             return;
         }
 
@@ -862,67 +1030,125 @@ const App = () => {
         setEnviandoPedido(true);
 
         try {
-            const totalCalc = carrinho.reduce(
-                (sum, item) => sum + (item.preco * item.quantidade),
+            const usuario = await garantirSessaoCliente();
+            if (!usuario) throw new Error('Sessão do cliente indisponível.');
+
+            const subtotalCalc = carrinho.reduce(
+                (sum, item) => sum + (Number(item.preco) * Number(item.quantidade)),
                 0
             );
+            const taxaCalc = checkoutForm.tipo === 'entrega' ? Number(restaurante.taxa_entrega || 0) : 0;
+            const totalCalc = subtotalCalc + taxaCalc;
+            const itensLimpos = carrinho.map(({ cartKey, ...item }) => item);
 
             const novoPedido = {
                 id: Math.random().toString(36).substring(2, 9),
+                cliente_user_id: usuario.id,
                 cliente_nome: clienteDados.nome,
                 cliente_celular: clienteDados.celular,
                 total: totalCalc,
                 status: 'novo',
+                motivo_rejeicao: null,
                 itens: {
                     filial_id: restaurante.id,
                     filial_nome: restaurante.nome,
-                    lanches: carrinho,
+                    lanches: itensLimpos,
+                    subtotal: subtotalCalc,
+                    taxa_entrega: taxaCalc,
+                    tipo_recebimento: checkoutForm.tipo,
                     endereco: checkoutForm.tipo === 'entrega' ? clienteDados.endereco : 'Retirada',
                     referencia: checkoutForm.tipo === 'entrega' ? clienteDados.referencia : '',
                     pagamento: checkoutForm.pagamento,
-                    troco: checkoutForm.troco
+                    troco: checkoutForm.troco,
+                    whatsapp_loja: restaurante.whatsapp || ''
                 }
             };
 
-            if (supabase) {
-                const { error } = await supabase.from('pedidos').insert([novoPedido]);
-
-                if (error) {
-                    console.error("Erro insert pedido:", error);
-                    alert("Erro ao enviar pedido para o restaurante.");
-                    return;
-                }
-            }
+            const { error } = await supabase.from('pedidos').insert([novoPedido]);
+            if (error) throw error;
 
             setCarrinho([]);
-            carregarMeusPedidos(clienteDados.celular);
+            await carregarMeusPedidos();
             setView('pedidos');
             alert("Pedido enviado com sucesso!");
         } catch (err) {
             console.error("Erro ao finalizar pedido:", err);
-            alert("Erro ao enviar pedido para o restaurante.");
+            alert(`O pedido NÃO foi enviado. ${err.message || 'Tente novamente.'}`);
         } finally {
             setEnviandoPedido(false);
         }
     };
 
-    const moverPedidoStatus = async (id, novoStatus) => {
+    const moverPedidoStatus = async (id, novoStatus, extras = {}) => {
+        const anterior = pedidosAdmin;
         setPedidosAdmin(prev =>
-            prev.map(p => p.id === id ? { ...p, status: novoStatus } : p)
+            prev.map(p => p.id === id ? { ...p, status: novoStatus, ...extras } : p)
         );
 
-        if (supabase) {
-            const { error } = await supabase
-                .from('pedidos')
-                .update({ status: novoStatus })
-                .eq('id', id);
-
-            if (error) {
-                console.error("Erro ao atualizar pedido:", error);
-                carregarPedidosAdminLocal();
-            }
+        if (!supabase) {
+            setPedidosAdmin(anterior);
+            alert('Sem conexão com o banco. O status não foi alterado.');
+            return false;
         }
+
+        const { error } = await supabase
+            .from('pedidos')
+            .update({ status: novoStatus, ...extras })
+            .eq('id', id);
+
+        if (error) {
+            console.error("Erro ao atualizar pedido:", error);
+            setPedidosAdmin(anterior);
+            alert('Não foi possível atualizar o pedido.');
+            carregarPedidosAdminLocal();
+            return false;
+        }
+        return true;
     };
+
+    const abrirModalRejeicao = (pedidoId) => {
+        setModalRejeicao({ aberto: true, pedidoId, motivo: '' });
+    };
+
+    const confirmarRejeicaoPedido = async () => {
+        const motivo = modalRejeicao.motivo.trim();
+        if (!motivo) {
+            alert('Informe o motivo da rejeição.');
+            return;
+        }
+        const ok = await moverPedidoStatus(modalRejeicao.pedidoId, 'rejeitado', { motivo_rejeicao: motivo });
+        if (ok) setModalRejeicao({ aberto: false, pedidoId: null, motivo: '' });
+    };
+
+    useEffect(() => {
+        if (!isAdmin) {
+            alertasInicializadosRef.current = false;
+            pedidosNovosConhecidosRef.current = new Set();
+            return;
+        }
+
+        const novos = pedidosAdminFiltrados.filter(p => p.status === 'novo');
+        const idsAtuais = new Set(novos.map(p => p.id));
+
+        if (!alertasInicializadosRef.current) {
+            pedidosNovosConhecidosRef.current = idsAtuais;
+            alertasInicializadosRef.current = true;
+            return;
+        }
+
+        const chegaram = novos.filter(p => !pedidosNovosConhecidosRef.current.has(p.id));
+        if (chegaram.length > 0) {
+            tocarSomNovoPedido();
+            const ultimo = chegaram[0];
+            setAlertaNovoPedido({
+                quantidade: chegaram.length,
+                texto: chegaram.length === 1
+                    ? `Novo pedido de ${ultimo.cliente_nome || 'cliente'}!`
+                    : `${chegaram.length} novos pedidos recebidos!`
+            });
+        }
+        pedidosNovosConhecidosRef.current = idsAtuais;
+    }, [pedidosAdmin, isAdmin, idAdminLogado]);
 
     const imprimirNota = (pedido) => {
         let info = {};
@@ -952,7 +1178,8 @@ const App = () => {
                 <hr/>
                 <div><b>ITENS:</b><br/>${lanchesHtml}</div>
                 <hr/>
-                <div>Total: R$ ${Number(pedido.total).toFixed(2).replace('.',',')}</div>
+                ${Number(info.taxa_entrega || 0) > 0 ? `<div>Subtotal: R$ ${Number(info.subtotal || (Number(pedido.total) - Number(info.taxa_entrega || 0))).toFixed(2).replace('.',',')}</div><div>Taxa de entrega: R$ ${Number(info.taxa_entrega).toFixed(2).replace('.',',')}</div>` : ''}
+                <div><b>Total: R$ ${Number(pedido.total).toFixed(2).replace('.',',')}</b></div>
                 <hr/>
                 <div>Endereço: ${info.endereco || 'Retirada'}</div>
                 ${info.referencia ? `<div>Ref: ${info.referencia}</div>` : ''}
@@ -1026,7 +1253,9 @@ const App = () => {
         }
     };
 
-    const totalCarrinho = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    const subtotalCarrinho = carrinho.reduce((sum, item) => sum + (Number(item.preco) * Number(item.quantidade)), 0);
+    const taxaEntregaCarrinho = checkoutForm.tipo === 'entrega' ? Number(restaurante.taxa_entrega || 0) : 0;
+    const totalCarrinho = subtotalCarrinho + taxaEntregaCarrinho;
     const badgeCount = carrinho.reduce((sum, item) => sum + item.quantidade, 0);
 
     if (isAdmin) {
@@ -1117,14 +1346,23 @@ const App = () => {
                     </header>
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
+                        {alertaNovoPedido && (
+                            <div className="mb-5 bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 rounded-xl p-4 flex items-center justify-between shadow-lg animate-pulse">
+                                <div className="flex items-center">
+                                    <i className="fas fa-bell mr-3 text-xl"></i>
+                                    <span className="font-bold text-sm md:text-base">{alertaNovoPedido.texto}</span>
+                                </div>
+                                <button onClick={() => setAlertaNovoPedido(null)} className="text-emerald-200 hover:text-white w-8 h-8 rounded-lg hover:bg-emerald-500/20"><i className="fas fa-times"></i></button>
+                            </div>
+                        )}
                         
                         {/* Area de Pedidos */}
                         {adminView === 'pedidos' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 h-full items-start">
-                                {['novo', 'preparo', 'pronto'].map(status => (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-5 lg:gap-6 h-full items-start">
+                                {['novo', 'preparo', 'pronto', 'saiu_entrega'].map(status => (
                                     <div key={status} className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col max-h-[80vh] shadow-sm relative z-10">
                                         <div className="p-3.5 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center sticky top-0 z-10">
-                                            <h4 className="text-white font-medium tracking-wide uppercase text-sm">{status === 'novo' ? 'Novos Pedidos' : status === 'preparo' ? 'Em Preparo' : 'Prontos / Entrega'}</h4>
+                                            <h4 className="text-white font-medium tracking-wide uppercase text-sm">{status === 'novo' ? 'Novos Pedidos' : status === 'preparo' ? 'Em Preparo' : status === 'pronto' ? 'Prontos' : 'Saiu p/ Entrega'}</h4>
                                         </div>
                                         <div className="p-3 overflow-y-auto space-y-3 hide-scrollbar flex-1 min-h-[150px]">
                                             {pedidosAdminFiltrados.filter(p => p.status === status).map(p => {
@@ -1152,11 +1390,12 @@ const App = () => {
                                                             {status === 'novo' && (
                                                                 <div className="flex space-x-2">
                                                                     <button onClick={() => moverPedidoStatus(p.id, 'preparo')} className="flex-1 bg-[#d79e51] text-[#1a191c] font-bold py-1.5 rounded text-xs">Aceitar</button>
-                                                                    <button onClick={() => moverPedidoStatus(p.id, 'rejeitado')} className="flex-1 bg-red-900/50 text-red-300 border border-red-700/50 font-bold py-1.5 rounded text-xs">Rejeitar</button>
+                                                                    <button onClick={() => abrirModalRejeicao(p.id)} className="flex-1 bg-red-900/50 text-red-300 border border-red-700/50 font-bold py-1.5 rounded text-xs">Rejeitar</button>
                                                                 </div>
                                                             )}
-                                                            {status === 'preparo' && <button onClick={() => moverPedidoStatus(p.id, 'pronto')} className="w-full bg-green-500 text-white font-bold py-1.5 rounded text-xs">Pronto / Entrega</button>}
-                                                            {status === 'pronto' && <button onClick={() => moverPedidoStatus(p.id, 'finalizado')} className="w-full bg-gray-600 text-white font-bold py-1.5 rounded text-xs">Concluir / Arquivar</button>}
+                                                            {status === 'preparo' && <button onClick={() => moverPedidoStatus(p.id, 'pronto')} className="w-full bg-green-500 text-white font-bold py-1.5 rounded text-xs">Marcar como Pronto</button>}
+                                                            {status === 'pronto' && (info.endereco && info.endereco !== 'Retirada' ? <button onClick={() => moverPedidoStatus(p.id, 'saiu_entrega')} className="w-full bg-blue-600 text-white font-bold py-1.5 rounded text-xs">Saiu para Entrega</button> : <button onClick={() => moverPedidoStatus(p.id, 'finalizado')} className="w-full bg-gray-600 text-white font-bold py-1.5 rounded text-xs">Concluir Retirada</button>)}
+                                                            {status === 'saiu_entrega' && <button onClick={() => moverPedidoStatus(p.id, 'finalizado')} className="w-full bg-gray-600 text-white font-bold py-1.5 rounded text-xs">Concluir / Arquivar</button>}
                                                             {(status === 'finalizado' || p.status === 'rejeitado') && <span className="w-full block text-center text-gray-500 font-bold py-1.5 rounded text-xs border border-gray-700">{p.status === 'rejeitado' ? 'Pedido Rejeitado' : 'Finalizado'}</span>}
                                                             
                                                             <button onClick={() => imprimirNota(p)} className="w-full bg-transparent border border-gray-600 text-gray-400 hover:text-white py-1.5 rounded text-xs"><i className="fas fa-print mr-1"></i> Imprimir Nota</button>
@@ -1243,6 +1482,14 @@ const App = () => {
                                             <div>
                                                 <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Raio Máximo (KM)</label>
                                                 <input type="number" value={restaurante.raio_entrega} onChange={(e) => setRestaurante({...restaurante, raio_entrega: Number(e.target.value)})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Taxa de Entrega (R$)</label>
+                                                <input type="number" min="0" step="0.01" value={restaurante.taxa_entrega ?? 0} onChange={(e) => setRestaurante({...restaurante, taxa_entrega: Number(e.target.value)})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">WhatsApp da Loja</label>
+                                                <input type="tel" value={restaurante.whatsapp || ''} onChange={(e) => setRestaurante({...restaurante, whatsapp: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" placeholder="Ex: (11) 99999-9999" />
                                             </div>
                                         </div>
                                     </div>
@@ -1513,6 +1760,24 @@ const App = () => {
                     </main>
                 </div>
                 
+                {modalRejeicao.aberto && (
+                    <div className="fixed inset-0 bg-black/80 z-[90] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-[#242326] border border-red-900/50 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+                            <div className="p-5 border-b border-gray-800">
+                                <h3 className="text-white font-black text-lg">Rejeitar pedido</h3>
+                                <p className="text-gray-400 text-sm mt-1">Informe o motivo. O cliente verá essa mensagem.</p>
+                            </div>
+                            <div className="p-5">
+                                <textarea value={modalRejeicao.motivo} onChange={(e) => setModalRejeicao({...modalRejeicao, motivo: e.target.value})} rows="4" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl p-4 outline-none focus:border-red-500 resize-none" placeholder="Ex.: item indisponível, endereço fora da área..." />
+                            </div>
+                            <div className="p-4 border-t border-gray-800 flex gap-3">
+                                <button onClick={() => setModalRejeicao({ aberto: false, pedidoId: null, motivo: '' })} className="flex-1 border border-gray-600 text-gray-300 rounded-xl py-3 font-bold">Cancelar</button>
+                                <button onClick={confirmarRejeicaoPedido} className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl py-3 font-bold">Confirmar rejeição</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Modal Produto */}
                 {modalProdutoAberto && (
                     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -1795,19 +2060,19 @@ const App = () => {
                                 <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 w-full items-start">
                                     <div className="w-full lg:w-3/5 space-y-4 md:space-y-6">
                                         <h3 className="text-white font-black uppercase tracking-wider text-lg md:text-2xl border-b border-gray-800 pb-3 md:pb-4 mb-4 md:mb-6 flex items-center"><i className="fas fa-list-ul text-[#d79e51] mr-3"></i> Itens do Pedido</h3>
-                                        {carrinho.map(item => (
-                                            <div key={item.id} className="bg-[#363539] rounded-2xl md:rounded-3xl p-4 md:p-6 border border-gray-700/50 shadow-md hover:border-gray-500 transition-colors">
+                                        {carrinho.map((item, index) => (
+                                            <div key={item.cartKey || `${item.id}-${index}`} className="bg-[#363539] rounded-2xl md:rounded-3xl p-4 md:p-6 border border-gray-700/50 shadow-md hover:border-gray-500 transition-colors">
                                                 <div className="flex justify-between items-start mb-3 md:mb-4">
                                                     <h4 className="font-bold text-white text-base md:text-xl pr-4">{item.nome}</h4>
                                                     <span className="text-[#d79e51] font-black text-lg md:text-2xl whitespace-nowrap">R$ {(item.preco * item.quantidade).toFixed(2).replace('.', ',')}</span>
                                                 </div>
-                                                <input type="text" placeholder="Alguma observação? (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.id, e.target.value)} className="w-full bg-[#1a191c] text-sm md:text-base text-gray-300 border border-gray-700/80 rounded-xl mb-4 md:mb-5 px-4 md:px-5 py-2.5 md:py-3.5 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all" />
+                                                <input type="text" placeholder="Alguma observação? (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.cartKey, e.target.value)} className="w-full bg-[#1a191c] text-sm md:text-base text-gray-300 border border-gray-700/80 rounded-xl mb-4 md:mb-5 px-4 md:px-5 py-2.5 md:py-3.5 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all" />
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-sm md:text-base text-gray-400 font-medium">R$ {item.preco.toFixed(2).replace('.', ',')} / un</span>
                                                     <div className="flex items-center space-x-1 md:space-x-2 bg-[#1a191c] rounded-xl p-1 border border-gray-800 shadow-inner">
-                                                        <button onClick={() => alterarQuantidade(item.id, -1)} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">-</button>
+                                                        <button onClick={() => alterarQuantidade(item.cartKey, -1)} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">-</button>
                                                         <span className="text-white font-black w-8 md:w-10 text-center md:text-lg">{item.quantidade}</span>
-                                                        <button onClick={() => alterarQuantidade(item.id, 1)} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">+</button>
+                                                        <button onClick={() => alterarQuantidade(item.cartKey, 1)} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">+</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1872,12 +2137,12 @@ const App = () => {
                                         <div className="bg-[#1a191c] rounded-2xl md:rounded-3xl p-5 md:p-7 mt-8 md:mt-10 border border-gray-800 shadow-inner">
                                             <div className="flex justify-between items-center mb-3 text-gray-400 text-sm md:text-base font-medium">
                                                 <span>Subtotal</span>
-                                                <span>R$ {totalCarrinho.toFixed(2).replace('.', ',')}</span>
+                                                <span>R$ {subtotalCarrinho.toFixed(2).replace('.', ',')}</span>
                                             </div>
                                             {checkoutForm.tipo === 'entrega' && (
                                                 <div className="flex justify-between items-center mb-5 text-gray-400 text-sm md:text-base font-medium">
                                                     <span>Taxa de Entrega</span>
-                                                    <span className="text-[#d79e51] font-bold">A combinar</span>
+                                                    <span className="text-[#d79e51] font-bold">R$ {taxaEntregaCarrinho.toFixed(2).replace('.', ',')}</span>
                                                 </div>
                                             )}
                                             <div className="border-t border-gray-800 pt-4 mt-2 flex justify-between items-center">
@@ -1939,12 +2204,45 @@ const App = () => {
                                                         {info.lanches?.map(l => `${l.quantidade}x ${l.nome}`).join(', ')}
                                                     </p>
                                                 </div>
-                                                <div className="flex justify-between items-center bg-[#1a191c] px-4 md:px-5 py-3 md:py-4 rounded-2xl border border-gray-800">
-                                                    <span className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest">Status Atual</span>
-                                                    <span className={`text-sm md:text-base font-black uppercase tracking-wider ${p.status==='novo'?'text-blue-400':p.status==='preparo'?'text-yellow-400 animate-pulse':p.status==='pronto'?'text-emerald-400':p.status==='rejeitado'?'text-red-400':'text-gray-500'}`}>
-                                                        {p.status === 'novo' ? 'Aguardando' : p.status === 'preparo' ? 'Em Preparo' : p.status === 'pronto' ? 'A Caminho' : p.status}
-                                                    </span>
-                                                </div>
+                                                {p.status === 'rejeitado' ? (
+                                                    <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
+                                                        <div className="flex items-center text-red-400 font-black uppercase tracking-wider text-sm"><i className="fas fa-times-circle mr-2"></i>Pedido Rejeitado</div>
+                                                        {p.motivo_rejeicao && <p className="text-red-200/80 text-xs md:text-sm mt-2">Motivo: {p.motivo_rejeicao}</p>}
+                                                    </div>
+                                                ) : (
+                                                    <div className="bg-[#1a191c] px-4 md:px-5 py-4 rounded-2xl border border-gray-800">
+                                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Acompanhe seu pedido</p>
+                                                        {(() => {
+                                                            const entrega = info.endereco && info.endereco !== 'Retirada';
+                                                            const etapas = entrega
+                                                                ? [
+                                                                    ['novo', 'Recebido'],
+                                                                    ['preparo', 'Em preparo'],
+                                                                    ['pronto', 'Pronto'],
+                                                                    ['saiu_entrega', 'Saiu para entrega'],
+                                                                    ['finalizado', 'Finalizado']
+                                                                ]
+                                                                : [
+                                                                    ['novo', 'Recebido'],
+                                                                    ['preparo', 'Em preparo'],
+                                                                    ['pronto', 'Pronto para retirada'],
+                                                                    ['finalizado', 'Finalizado']
+                                                                ];
+                                                            const indiceAtual = etapas.findIndex(([status]) => status === p.status);
+                                                            return (
+                                                                <div className="space-y-2">
+                                                                    {etapas.map(([status, label], idx) => {
+                                                                        const ativo = idx <= indiceAtual;
+                                                                        return <div key={status} className={`flex items-center text-xs md:text-sm ${ativo ? 'text-emerald-400' : 'text-gray-600'}`}><i className={`fas ${ativo ? 'fa-check-circle' : 'fa-circle'} mr-2`}></i><span className={idx === indiceAtual ? 'font-black' : 'font-medium'}>{label}</span></div>;
+                                                                    })}
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                )}
+                                                {(info.whatsapp_loja || restaurante.whatsapp) && (
+                                                    <button onClick={() => abrirWhatsAppLoja(info.whatsapp_loja || restaurante.whatsapp, p.id)} className="mt-3 w-full bg-emerald-600/15 border border-emerald-600/40 text-emerald-400 hover:bg-emerald-600 hover:text-white py-3 rounded-xl font-bold text-sm transition-colors"><i className="fab fa-whatsapp mr-2"></i>Falar com a loja</button>
+                                                )}
                                             </div>
                                         )
                                     })}
@@ -2051,8 +2349,8 @@ const App = () => {
                                         <input type="password" name="senha" placeholder="••••••••" className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl md:rounded-2xl pl-12 md:pl-14 pr-4 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required />
                                     </div>
                                 </div>
-                                <button type="submit" className="w-full bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] font-black tracking-widest text-lg md:text-xl py-4 md:py-5 rounded-xl md:rounded-2xl shadow-[0_10px_25px_rgba(215,158,81,0.3)] active:scale-95 transition-all mt-8">
-                                    ENTRAR NO PAINEL
+                                <button type="submit" disabled={adminLoginLoading} className={`w-full bg-[#d79e51] text-[#1a191c] font-black tracking-widest text-lg md:text-xl py-4 md:py-5 rounded-xl md:rounded-2xl shadow-[0_10px_25px_rgba(215,158,81,0.3)] active:scale-95 transition-all mt-8 ${adminLoginLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[#e8b776]'}`}>
+                                    {adminLoginLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>ENTRANDO...</> : 'ENTRAR NO PAINEL'}
                                 </button>
                                 <button type="button" onClick={() => setView('perfil')} className="w-full bg-transparent text-gray-500 hover:text-white font-bold text-sm md:text-base uppercase tracking-wider py-3 md:py-4 mt-2 rounded-xl transition-colors border border-transparent hover:border-gray-700">Voltar para a Loja</button>
                             </form>
