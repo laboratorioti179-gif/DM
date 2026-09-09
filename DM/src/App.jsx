@@ -21,7 +21,15 @@ const App = () => {
     });
     
     const [produtos, setProdutos] = useState([]);
-    const [categorias, setCategorias] = useState([]);
+    const [categorias, setCategorias] = useState(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const cache = localStorage.getItem('dogs_categorias_cache');
+            return cache ? JSON.parse(cache) : [];
+        } catch (e) {
+            return [];
+        }
+    });
     const [pedidosAdmin, setPedidosAdmin] = useState([]);
     const [clienteAuth, setClienteAuth] = useState(false);
     const [clienteDados, setClienteDados] = useState({ nome: '', celular: '', cep: '', endereco: '', referencia: '', lat: null, lng: null });
@@ -56,7 +64,23 @@ const App = () => {
     
     const [cepLojaBuscando, setCepLojaBuscando] = useState(false);
     const [erroCepLoja, setErroCepLoja] = useState('');
-    const [lojas, setLojas] = useState([]);
+    const [lojas, setLojas] = useState(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const cache = localStorage.getItem('dogs_lojas_cache');
+            return cache ? JSON.parse(cache) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+    const [lojasLoading, setLojasLoading] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        try {
+            return !localStorage.getItem('dogs_lojas_cache');
+        } catch (e) {
+            return true;
+        }
+    });
     const [novaLojaForm, setNovaLojaForm] = useState({ nome: '', tempo_entrega: '30-45 min', raio_entrega: 5 });
     
     const [financeiroForm, setFinanceiroForm] = useState({ restaurante_id: '', tipo: 'entrada', valor: '', descricao: '' });
@@ -538,10 +562,128 @@ const App = () => {
         }
     };
 
+
+    const salvarCacheSeguro = (chave, valor) => {
+        try {
+            localStorage.setItem(chave, JSON.stringify(valor));
+        } catch (e) {
+            console.warn(`Não foi possível salvar o cache ${chave}:`, e);
+        }
+    };
+
+    const carregarLojas = async () => {
+        if (!supabase) return [];
+        setLojasLoading(true);
+
+        try {
+            const { data, error } = await supabase
+                .from('restaurante')
+                .select('id,nome,is_aberto,tempo_entrega,raio_entrega,taxa_entrega,whatsapp,foto_capa_url,logo_url,cep,lat,lng,created_at')
+                .order('created_at', { ascending: true });
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            const restData = data || [];
+            setLojas(restData);
+
+            // O cache das lojas é propositalmente leve: não guardamos capa/logo em base64
+            // para não estourar o limite do localStorage nem atrasar a próxima abertura.
+            const lojasCacheLeve = restData.map(({ foto_capa_url, logo_url, ...loja }) => loja);
+            salvarCacheSeguro('dogs_lojas_cache', lojasCacheLeve);
+
+            if (restData.length > 0) {
+                if (isAdmin) {
+                    const lojaGestor = adminRestauranteId
+                        ? (restData.find(r => String(r.id) === String(adminRestauranteId)) || restData[0])
+                        : (isFranquia2 ? (restData.length > 1 ? restData[1] : restData[0]) : restData[0]);
+
+                    setRestaurante(lojaGestor);
+                } else {
+                    const selectedId = localStorage.getItem('loja_selecionada');
+                    const lojaAtual = restData.find(r => String(r.id) === String(selectedId)) || restData[0];
+                    setRestaurante(lojaAtual);
+                }
+            }
+
+            return restData;
+        } catch (err) {
+            console.error('Erro ao carregar restaurantes:', err);
+            return [];
+        } finally {
+            setLojasLoading(false);
+        }
+    };
+
+    const carregarCategorias = async () => {
+        if (!supabase) return [];
+
+        try {
+            const { data, error } = await supabase
+                .from('categorias')
+                .select('id,nome,ordem')
+                .order('ordem', { ascending: true });
+
+            if (error) throw error;
+
+            const catData = data || [];
+            setCategorias(catData);
+            salvarCacheSeguro('dogs_categorias_cache', catData);
+            return catData;
+        } catch (err) {
+            console.error('Erro ao carregar categorias:', err);
+            return [];
+        }
+    };
+
+    const carregarProdutosLoja = async (restauranteId, mostrarLoading = true) => {
+        if (!supabase || !restauranteId) {
+            setProdutos([]);
+            return [];
+        }
+
+        if (mostrarLoading) setDbLoading(true);
+
+        try {
+            const { data, error } = await supabase
+                .from('produtos')
+                .select('id,nome,preco,descricao,categoria_id,ativo,is_destaque,imagem_url,restaurante_id')
+                .eq('restaurante_id', restauranteId);
+
+            if (error) throw error;
+
+            const prodData = data || [];
+            setProdutos(prodData);
+            return prodData;
+        } catch (err) {
+            console.error(`Erro ao carregar produtos da loja ${restauranteId}:`, err);
+            setProdutos([]);
+            return [];
+        } finally {
+            if (mostrarLoading) setDbLoading(false);
+        }
+    };
+
     useEffect(() => {
         const initScripts = async () => {
             document.title = 'Dogs Do Mirso';
             document.documentElement.setAttribute('translate', 'no');
+
+            // Antecipar conexões críticas para reduzir o tempo da primeira abertura.
+            const preconnects = [
+                'https://vzcrfnyfiqsfrwswlvyf.supabase.co',
+                'https://cdn.jsdelivr.net',
+                'https://cdn.tailwindcss.com'
+            ];
+            preconnects.forEach((href) => {
+                if (!document.querySelector(`link[data-dogs-preconnect="${href}"]`)) {
+                    const link = document.createElement('link');
+                    link.rel = 'preconnect';
+                    link.href = href;
+                    link.crossOrigin = 'anonymous';
+                    link.dataset.dogsPreconnect = href;
+                    document.head.appendChild(link);
+                }
+            });
 
             // Responsividade real em navegadores mobile, tablet e notebook.
             const viewportContent = 'width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover';
@@ -661,6 +803,9 @@ const App = () => {
             if (!window.supabase) {
                 const sbScript = document.createElement('script');
                 sbScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+                sbScript.async = true;
+                sbScript.crossOrigin = 'anonymous';
+                try { sbScript.fetchPriority = 'high'; } catch (e) {}
                 sbScript.onload = () => {
                      const sbUrl = 'https://vzcrfnyfiqsfrwswlvyf.supabase.co';
                      const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6Y3JmbnlmaXFzZnJ3c3dsdnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMTQ1NjksImV4cCI6MjA5NDc5MDU2OX0.es2duCl9cJQjSH787kCxtUbl-UqqcwedvKF5lf-uc7s';
@@ -748,54 +893,38 @@ const App = () => {
     useEffect(() => {
         if (!supabase) return;
 
-        const carregarDados = async () => {
+        let cancelado = false;
+
+        const carregarInicial = async () => {
             try {
-                const { data: catData, error: catError } = await supabase.from('categorias').select('*').order('ordem', { ascending: true });
-                if (catError) throw catError;
-                if (catData && catData.length > 0) setCategorias(catData);
+                // As lojas e categorias são pequenas e carregam em paralelo.
+                // Produtos NÃO são baixados aqui para não atrasar a tela inicial.
+                const [restData] = await Promise.all([
+                    carregarLojas(),
+                    carregarCategorias()
+                ]);
 
-                const { data: prodData, error: prodError } = await supabase.from('produtos').select('*');
-                if (prodError) throw prodError;
-                if (prodData) setProdutos(prodData);
+                if (cancelado) return;
 
-                const { data: restData, error: restError } = await supabase.from('restaurante').select('*').order('created_at', { ascending: true });
-                if (restError && restError.code !== 'PGRST116') throw restError; 
-                
-                if (restData && restData.length > 0) {
-                    setLojas(restData);
-                    
-                    if (isAdmin) {
-                        const lojaGestor = adminRestauranteId
-                            ? (restData.find(r => String(r.id) === String(adminRestauranteId)) || restData[0])
-                            : (isFranquia2 ? (restData.length > 1 ? restData[1] : restData[0]) : restData[0]);
-                        setRestaurante(lojaGestor);
-                    } else {
-                        const selectedId = localStorage.getItem('loja_selecionada');
-                        const lojaAtual = restData.find(r => r.id === selectedId) || restData[0];
-                        setRestaurante(lojaAtual);
-                    }
-                } else {
-                     const { data: novoRest } = await supabase.from('restaurante').insert([{ nome: 'DOGS DO MIRSO' }]).select().single();
-                     if (novoRest) {
-                         setRestaurante(novoRest);
-                         setLojas([novoRest]);
-                     }
-                }
-                
+                // No painel administrativo já carregamos apenas os produtos da loja logada.
                 if (isAdmin) {
+                    const lojaIdAdmin = adminRestauranteId || (restData[0] ? restData[0].id : null);
+                    if (lojaIdAdmin) {
+                        await carregarProdutosLoja(lojaIdAdmin, false);
+                    }
                     carregarPedidosAdminLocal();
                     carregarMovimentacoes();
                 }
-                if (clienteAuth) carregarMeusPedidos();
 
+                if (clienteAuth) carregarMeusPedidos();
             } catch (err) {
-                console.error("Erro ao carregar do banco:", err);
+                console.error('Erro no carregamento inicial:', err);
             } finally {
-                setDbLoading(false);
+                if (!cancelado) setDbLoading(false);
             }
         };
 
-        carregarDados();
+        carregarInicial();
 
         const isInIframe = () => {
             try { return window.self !== window.top; }
@@ -805,22 +934,45 @@ const App = () => {
         let channel = null;
 
         if (!isInIframe()) {
-             channel = supabase.channel('realtime-cardapio')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'produtos' }, () => carregarDados())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'categorias' }, () => carregarDados())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurante' }, () => carregarDados())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => carregarDados())
+            channel = supabase.channel(`realtime-cardapio-${adminRestauranteId || 'publico'}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurante' }, async () => {
+                    await carregarLojas();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'categorias' }, async () => {
+                    await carregarCategorias();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'produtos' }, async (payload) => {
+                    const lojaAtivaId = adminRestauranteId || localStorage.getItem('loja_selecionada');
+                    const lojaAlteradaId = payload?.new?.restaurante_id || payload?.old?.restaurante_id;
+
+                    if (lojaAtivaId && (!lojaAlteradaId || String(lojaAlteradaId) === String(lojaAtivaId))) {
+                        await carregarProdutosLoja(lojaAtivaId, false);
+                    }
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, async () => {
+                    if (isAdmin) carregarPedidosAdminLocal();
+                    if (clienteAuth) carregarMeusPedidos();
+                })
                 .subscribe();
         } else {
-             console.warn('Realtime desabilitado para o ambiente de preview.');
+            console.warn('Realtime desabilitado para o ambiente de preview.');
         }
 
         return () => {
+            cancelado = true;
             if (channel) {
                 try { supabase.removeChannel(channel); } catch (e) {}
             }
         };
-    }, [supabase, isAdmin, clienteAuth, clienteDados.celular, adminEmail, adminRestauranteId]);
+    }, [supabase, isAdmin, clienteAuth, adminEmail, adminRestauranteId]);
+
+    // O cardápio só é baixado depois que o cliente escolhe uma loja.
+    // Também cobre o caso em que a pessoa clicou numa loja antes do script do Supabase terminar de carregar.
+    useEffect(() => {
+        if (!supabase || isAdmin || view === 'selecionar_loja' || !restaurante.id) return;
+
+        carregarProdutosLoja(restaurante.id, true);
+    }, [supabase, restaurante.id, isAdmin]);
 
     const carregarMeusPedidos = async () => {
         if (!supabase) return;
@@ -861,7 +1013,7 @@ const App = () => {
             if (error) throw error;
 
             const user = data.user;
-            const meta = user?.user_metadata || {};
+            const meta = user?.app_metadata || {};
             setAdminEmail(user?.email || email);
             setAdminRole(meta.role || 'admin');
             setAdminRestauranteId(meta.restaurante_id || null);
@@ -869,7 +1021,7 @@ const App = () => {
             setView('home');
 
             if (!meta.restaurante_id) {
-                console.warn('Administrador autenticado sem restaurante_id em user_metadata. Configure-o no Supabase Auth.');
+                console.warn('Administrador autenticado sem restaurante_id em app_metadata. Configure-o no Supabase Auth.');
             }
         } catch (err) {
             console.error('Falha no login administrativo:', err);
@@ -1989,11 +2141,33 @@ const App = () => {
                             <h2 className="font-black text-3xl md:text-4xl text-white uppercase tracking-widest text-center mb-2">Selecione a Loja</h2>
                             <p className="text-gray-400 text-base md:text-lg text-center mb-10 md:mb-14">Escolha de qual unidade você deseja pedir hoje.</p>
                             <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                {lojasLoading && lojas.length === 0 && (
+                                    <>
+                                        {[1, 2].map(i => (
+                                            <div key={i} className="w-full bg-[#1f1e22] border-2 border-transparent p-6 md:p-8 rounded-2xl md:rounded-3xl animate-pulse">
+                                                <div className="h-6 md:h-7 w-1/2 bg-gray-700 rounded mb-3"></div>
+                                                <div className="h-4 w-1/3 bg-gray-800 rounded"></div>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+
+                                {!lojasLoading && lojas.length === 0 && (
+                                    <div className="md:col-span-2 text-center text-gray-400 bg-[#1f1e22] border border-gray-800 rounded-2xl p-8">
+                                        <i className="fas fa-store-slash text-3xl mb-3 text-gray-600"></i>
+                                        <p>Nenhum restaurante disponível no momento.</p>
+                                    </div>
+                                )}
+
                                 {lojas.map(loja => (
                                     <button key={loja.id} onClick={() => {
                                         setRestaurante(loja);
                                         localStorage.setItem('loja_selecionada', loja.id);
+                                        setProdutos([]);
                                         setView('home');
+
+                                        // O cliente entra na loja imediatamente.
+                                        // O useEffect de produtos carrega somente esta unidade em segundo plano.
                                     }} className="w-full bg-[#1f1e22] border-2 border-transparent hover:border-[#d79e51] p-6 md:p-8 rounded-2xl md:rounded-3xl flex items-center justify-between transition-all duration-300 shadow-lg hover:shadow-[0_10px_30px_rgba(215,158,81,0.15)] group">
                                         <div className="flex flex-col text-left">
                                             <span className="text-white font-bold text-xl md:text-2xl group-hover:text-[#d79e51] transition-colors">{loja.nome}</span>
@@ -2040,6 +2214,16 @@ const App = () => {
                                     <div className="h-[2px] flex-1 bg-gradient-to-r from-[#d79e51]/50 to-transparent ml-4 md:ml-8"></div>
                                 </div>
                                 <div className="flex gap-4 overflow-x-auto pb-6 md:pb-8 snap-x md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:overflow-visible md:snap-none hide-scrollbar">
+                                    {dbLoading && produtos.length === 0 && [1, 2, 3].map(i => (
+                                        <div key={`loading-destaque-${i}`} className="w-[85vw] max-w-[300px] md:w-full md:max-w-none bg-[#363539] rounded-3xl overflow-hidden flex-none md:flex-auto border border-gray-700/50 snap-center animate-pulse">
+                                            <div className="h-48 md:h-64 bg-gray-700"></div>
+                                            <div className="p-5 md:p-7">
+                                                <div className="h-5 bg-gray-700 rounded w-2/3 mb-4"></div>
+                                                <div className="h-4 bg-gray-800 rounded w-full mb-2"></div>
+                                                <div className="h-4 bg-gray-800 rounded w-4/5"></div>
+                                            </div>
+                                        </div>
+                                    ))}
                                     {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id).map(p => (
                                         <div key={p.id} className="w-[85vw] max-w-[300px] md:w-full md:max-w-none bg-[#363539] rounded-3xl overflow-hidden shadow-lg flex-none md:flex-auto border border-gray-700/50 snap-center hover:border-[#d79e51]/50 hover:shadow-[0_15px_35px_rgba(215,158,81,0.15)] hover:-translate-y-2 transition-all duration-300 group cursor-pointer" onClick={() => abrirDetalheItem(p)}>
                                             <div className="h-48 md:h-64 relative overflow-hidden">
