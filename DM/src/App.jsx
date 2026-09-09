@@ -542,6 +542,86 @@ const App = () => {
         const initScripts = async () => {
             document.title = 'Dogs Do Mirso';
             document.documentElement.setAttribute('translate', 'no');
+
+            // Responsividade real em navegadores mobile, tablet e notebook.
+            const viewportContent = 'width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover';
+            let viewportMeta = document.querySelector('meta[name="viewport"]');
+            if (!viewportMeta) {
+                viewportMeta = document.createElement('meta');
+                viewportMeta.name = 'viewport';
+                document.head.appendChild(viewportMeta);
+            }
+            viewportMeta.content = viewportContent;
+
+            if (!document.getElementById('dogs-responsive-style')) {
+                const responsiveStyle = document.createElement('style');
+                responsiveStyle.id = 'dogs-responsive-style';
+                responsiveStyle.textContent = `
+                    html, body, #root {
+                        width: 100%;
+                        min-width: 0;
+                        min-height: 100%;
+                        margin: 0;
+                        padding: 0;
+                        overflow-x: hidden;
+                        background: #1a191c;
+                    }
+
+                    *, *::before, *::after {
+                        box-sizing: border-box;
+                    }
+
+                    img, video, canvas, svg {
+                        max-width: 100%;
+                    }
+
+                    button, input, select, textarea {
+                        min-width: 0;
+                    }
+
+                    .dogs-admin-shell {
+                        height: 100vh;
+                    }
+
+                    .dogs-app-shell {
+                        min-height: 100vh;
+                    }
+
+                    .dogs-touch-scroll {
+                        -webkit-overflow-scrolling: touch;
+                        overscroll-behavior-y: contain;
+                    }
+
+                    @supports (height: 100dvh) {
+                        .dogs-admin-shell {
+                            height: 100dvh;
+                        }
+
+                        .dogs-app-shell {
+                            min-height: 100dvh;
+                        }
+                    }
+
+                    @media (max-width: 767px) {
+                        html {
+                            -webkit-text-size-adjust: 100%;
+                            text-size-adjust: 100%;
+                        }
+
+                        input, select, textarea {
+                            font-size: 16px !important;
+                        }
+
+                        .dogs-mobile-modal {
+                            width: calc(100vw - 16px) !important;
+                            max-width: calc(100vw - 16px) !important;
+                            max-height: calc(100dvh - 16px) !important;
+                            border-radius: 18px !important;
+                        }
+                    }
+                `;
+                document.head.appendChild(responsiveStyle);
+            }
             
             if (!document.querySelector('meta[name="google"]')) {
                 const meta = document.createElement('meta');
@@ -1260,15 +1340,15 @@ const App = () => {
 
     if (isAdmin) {
         return (
-            <div className="fixed inset-0 bg-[#1a191c] flex w-full h-full text-white font-sans overflow-hidden z-50">
+            <div className="dogs-admin-shell fixed inset-0 bg-[#1a191c] flex w-full min-w-0 text-white font-sans overflow-hidden z-50">
                 
                 {/* Textura de Fundo SVG Pattern Gestor */}
                 <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.08]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30,45 C30,35 40,35 40,45 L40,75 C40,85 30,85 30,75 Z M32,45 L38,45 L38,75 L32,75 Z M70,40 L90,40 L88,80 L72,80 Z M74,42 L86,42 L84,78 L76,78 Z' fill='%23d79e51' fill-rule='evenodd'/%3E%3C/svg%3E")` }}></div>
 
-                <div className={`absolute md:relative z-[60] w-64 bg-[#242326] border-r border-gray-800 flex flex-col h-full transform ${adminMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 flex-shrink-0`}>
+                <div className={`absolute lg:relative z-[60] w-[84vw] max-w-[280px] sm:w-72 lg:w-64 bg-[#242326] border-r border-gray-800 flex flex-col h-full transform ${adminMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 flex-shrink-0`}>
                     <div className="p-5 flex items-center justify-between border-b border-gray-800">
                         <h2 className="font-bold text-xl text-[#d79e51] uppercase tracking-wider">Gestão</h2>
-                        <button onClick={() => setAdminMenuOpen(false)} className="md:hidden text-gray-400 hover:text-white transition-colors">
+                        <button onClick={() => setAdminMenuOpen(false)} className="lg:hidden text-gray-400 hover:text-white transition-colors">
                             <i className="fas fa-times text-xl"></i>
                         </button>
                     </div>
@@ -1321,15 +1401,15 @@ const App = () => {
                     </div>
                 </div>
 
-                {adminMenuOpen && <div onClick={() => setAdminMenuOpen(false)} className="fixed inset-0 bg-black/60 z-[55] md:hidden backdrop-blur-sm transition-opacity"></div>}
+                {adminMenuOpen && <div onClick={() => setAdminMenuOpen(false)} className="fixed inset-0 bg-black/60 z-[55] lg:hidden backdrop-blur-sm transition-opacity"></div>}
 
-                <div className="flex-1 flex flex-col overflow-hidden relative w-full z-10">
-                    <header className="bg-[#1f1e22] border-b border-gray-800 p-4 flex justify-between items-center z-10 flex-shrink-0">
-                        <div className="flex items-center">
-                            <button onClick={() => setAdminMenuOpen(true)} className="md:hidden text-gray-400 hover:text-white mr-4 transition-colors">
+                <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative w-full z-10">
+                    <header className="bg-[#1f1e22] border-b border-gray-800 p-3 sm:p-4 flex justify-between items-center gap-3 z-10 flex-shrink-0">
+                        <div className="flex items-center min-w-0">
+                            <button onClick={() => setAdminMenuOpen(true)} className="lg:hidden text-gray-400 hover:text-white mr-3 sm:mr-4 transition-colors flex-shrink-0">
                                 <i className="fas fa-bars text-xl"></i>
                             </button>
-                            <h3 className="text-white text-lg font-medium">
+                            <h3 className="text-white text-sm sm:text-base lg:text-lg font-medium truncate">
                                 {adminView === 'pedidos' ? 'Gestão de Pedidos' : adminView === 'cardapio' ? 'Cardápio Web' : adminView === 'nova_loja' ? 'Nova Loja' : adminView === 'financeiro' ? 'Financeiro' : adminView === 'promocoes' ? 'Disparo Promo' : 'Configurações do App'}
                             </h3>
                         </div>
@@ -1339,13 +1419,13 @@ const App = () => {
                                     setProdutoEditando({nome: '', preco: '', categoria_id: categorias[0]?.id || '', descricao: '', ativo: true, is_destaque: false, imagem_url: ''}); 
                                     setModalProdutoAberto(true);
                                 }} className="bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] px-3 md:px-4 py-1.5 md:py-2 rounded-lg font-bold text-[11px] md:text-sm shadow-md transition-colors flex items-center">
-                                    <i className="fas fa-plus md:mr-2"></i> <span className="hidden md:inline">Novo Lanche</span>
+                                    <i className="fas fa-plus sm:mr-2"></i> <span className="hidden sm:inline">Novo Lanche</span>
                                 </button>
                             </div>
                         )}
                     </header>
 
-                    <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8 relative">
+                    <main className="dogs-touch-scroll flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 pb-24 lg:pb-8 relative">
                         {alertaNovoPedido && (
                             <div className="mb-5 bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 rounded-xl p-4 flex items-center justify-between shadow-lg animate-pulse">
                                 <div className="flex items-center">
@@ -1358,9 +1438,9 @@ const App = () => {
                         
                         {/* Area de Pedidos */}
                         {adminView === 'pedidos' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-5 lg:gap-6 h-full items-start">
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 h-full items-start">
                                 {['novo', 'preparo', 'pronto', 'saiu_entrega'].map(status => (
-                                    <div key={status} className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col max-h-[80vh] shadow-sm relative z-10">
+                                    <div key={status} className="bg-[#242326] rounded-xl border border-gray-800 flex flex-col max-h-none md:max-h-[calc(100dvh-9rem)] shadow-sm relative z-10">
                                         <div className="p-3.5 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center sticky top-0 z-10">
                                             <h4 className="text-white font-medium tracking-wide uppercase text-sm">{status === 'novo' ? 'Novos Pedidos' : status === 'preparo' ? 'Em Preparo' : status === 'pronto' ? 'Prontos' : 'Saiu p/ Entrega'}</h4>
                                         </div>
@@ -1571,7 +1651,7 @@ const App = () => {
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Registrar Movimentação</h4>
                                     </div>
                                     <div className="p-5 space-y-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                                             <div>
                                                 <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Loja *</label>
                                                 <select value={financeiroForm.restaurante_id} onChange={(e) => setFinanceiroForm({...financeiroForm, restaurante_id: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm">
@@ -1761,8 +1841,8 @@ const App = () => {
                 </div>
                 
                 {modalRejeicao.aberto && (
-                    <div className="fixed inset-0 bg-black/80 z-[90] flex items-center justify-center p-4 backdrop-blur-sm">
-                        <div className="bg-[#242326] border border-red-900/50 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+                    <div className="fixed inset-0 bg-black/80 z-[90] flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
+                        <div className="dogs-mobile-modal bg-[#242326] border border-red-900/50 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
                             <div className="p-5 border-b border-gray-800">
                                 <h3 className="text-white font-black text-lg">Rejeitar pedido</h3>
                                 <p className="text-gray-400 text-sm mt-1">Informe o motivo. O cliente verá essa mensagem.</p>
@@ -1780,8 +1860,8 @@ const App = () => {
 
                 {/* Modal Produto */}
                 {modalProdutoAberto && (
-                    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
-                        <div className="bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
+                    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
+                        <div className="dogs-mobile-modal bg-[#242326] border border-gray-700 rounded-xl w-full max-w-md flex flex-col max-h-[90vh] shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
                             <div className="p-4 md:p-5 border-b border-gray-800 flex justify-between items-center flex-shrink-0">
                                 <h3 className="text-white text-lg font-bold">{produtoEditando?.id ? 'Editar Produto' : 'Novo Produto'}</h3>
                                 <button onClick={() => setModalProdutoAberto(false)} className="text-gray-400 hover:text-[#d79e51] transition-colors"><i className="fas fa-times text-xl"></i></button>
@@ -1791,7 +1871,7 @@ const App = () => {
                                     <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Nome do Item *</label>
                                     <input type="text" value={produtoEditando?.nome || ''} onChange={(e) => setProdutoEditando({...produtoEditando, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
                                 </div>
-                                <div className="flex space-x-3">
+                                <div className="flex flex-col sm:flex-row gap-3">
                                     <div className="flex-1">
                                         <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Preço (R$) *</label>
                                         <input type="number" step="0.01" value={produtoEditando?.preco || ''} onChange={(e) => setProdutoEditando({...produtoEditando, preco: parseFloat(e.target.value) || 0})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
@@ -1818,7 +1898,7 @@ const App = () => {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex items-center space-x-6 pt-3 border-t border-gray-800">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 pt-3 border-t border-gray-800">
                                     <label className="flex items-center space-x-2 cursor-pointer group">
                                         <input type="checkbox" checked={produtoEditando?.ativo ?? true} onChange={(e) => setProdutoEditando({...produtoEditando, ativo: e.target.checked})} className="sr-only peer" />
                                         <div className="w-9 h-5 rounded-full relative transition-colors duration-200" style={{ backgroundColor: (produtoEditando?.ativo ?? true) ? '#d79e51' : '#374151' }}>
@@ -1835,7 +1915,7 @@ const App = () => {
                                     </label>
                                 </div>
                             </div>
-                            <div className="p-4 border-t border-gray-800 flex justify-between items-center bg-[#1f1e22] rounded-b-xl">
+                            <div className="p-4 border-t border-gray-800 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-[#1f1e22] rounded-b-xl">
                                 <div>
                                     {produtoEditando?.id && (
                                         <button onClick={() => { excluirProduto(produtoEditando.id); }} className="px-4 py-2 rounded-lg font-bold text-xs text-red-400 border border-red-900/50 hover:bg-red-900/20 transition-colors">Excluir</button>
@@ -1852,8 +1932,8 @@ const App = () => {
 
                 {/* Modal Confirmacao */}
                 {modalConfirmacaoAberto.aberto && (
-                    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
-                        <div className="bg-[#242326] border border-red-900/50 rounded-xl w-full max-w-sm flex flex-col shadow-[0_15px_40px_rgba(0,0,0,0.5)] transform animate-fade-in">
+                    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
+                        <div className="dogs-mobile-modal bg-[#242326] border border-red-900/50 rounded-xl w-full max-w-sm flex flex-col shadow-[0_15px_40px_rgba(0,0,0,0.5)] transform animate-fade-in">
                             <div className="p-5 flex flex-col items-center text-center">
                                 <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
                                     <i className="fas fa-exclamation-triangle text-3xl text-red-500"></i>
@@ -1873,22 +1953,22 @@ const App = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#1a191c] flex justify-center items-start text-white font-sans w-full relative overflow-hidden">
+        <div className="dogs-app-shell bg-[#1a191c] flex justify-center items-start text-white font-sans w-full min-w-0 relative overflow-x-hidden">
             
             {/* Textura de Fundo SVG Pattern Cliente */}
             <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05] md:opacity-[0.08]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30,45 C30,35 40,35 40,45 L40,75 C40,85 30,85 30,75 Z M32,45 L38,45 L38,75 L32,75 Z M70,40 L90,40 L88,80 L72,80 Z M74,42 L86,42 L84,78 L76,78 Z' fill='%23d79e51' fill-rule='evenodd'/%3E%3C/svg%3E")` }}></div>
 
             {/* Container Principal Inteligente (Fino no celular, Expandido no Desktop) */}
-            <div className="w-full max-w-md md:max-w-4xl lg:max-w-6xl xl:max-w-7xl min-h-screen bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] md:shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden transition-all duration-300 mx-auto z-10">
+            <div className="dogs-app-shell w-full min-w-0 max-w-md md:max-w-4xl lg:max-w-6xl xl:max-w-7xl bg-[#2b2a2d] relative flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] md:shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden transition-all duration-300 mx-auto z-10">
                 
                 {/* Header fixo da loja */}
-                <div className="bg-[#1a191c] flex flex-col md:flex-row justify-center md:justify-between items-center py-3 md:py-4 px-6 border-b border-gray-800 text-xs md:text-sm shadow-md z-20">
+                <div className="bg-[#1a191c] flex flex-col sm:flex-row justify-center sm:justify-between items-stretch sm:items-center gap-2 sm:gap-3 py-2.5 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 border-b border-gray-800 text-[11px] sm:text-xs md:text-sm shadow-md z-20">
                     {lojas.length > 1 && (
-                        <button onClick={() => setView('selecionar_loja')} className="text-white font-bold mb-2 md:mb-0 flex items-center hover:text-[#d79e51] transition-colors text-sm md:text-base">
+                        <button onClick={() => setView('selecionar_loja')} className="text-white font-bold flex items-center justify-center sm:justify-start hover:text-[#d79e51] transition-colors text-sm md:text-base min-w-0 truncate">
                             {restaurante.nome} <i className="fas fa-chevron-down ml-2 text-[10px] md:text-xs"></i>
                         </button>
                     )}
-                    <div className="flex justify-center items-center bg-[#242326] px-4 py-1.5 md:py-2 md:px-5 rounded-full border border-gray-800 shadow-inner">
+                    <div className="w-full sm:w-auto flex flex-wrap justify-center items-center bg-[#242326] px-3 sm:px-4 py-1.5 md:py-2 md:px-5 rounded-2xl sm:rounded-full border border-gray-800 shadow-inner">
                         <span className="text-gray-300 flex items-center font-medium">
                             <i className="fas fa-motorcycle text-[#d79e51] mr-2 text-sm"></i> Delivery: <span className="ml-1 text-white">{restaurante.tempo_entrega}</span>
                         </span>
@@ -1901,11 +1981,11 @@ const App = () => {
                 </div>
 
                 {/* Área Rolável */}
-                <div className="flex-1 overflow-y-auto pb-32 md:pb-28 relative">
+                <div className="dogs-touch-scroll flex-1 min-w-0 overflow-y-auto overflow-x-hidden pb-28 sm:pb-32 md:pb-28 relative">
                     
                     {/* View Selecionar Loja */}
                     {view === 'selecionar_loja' && (
-                        <div className="pt-12 md:pt-20 px-6 flex flex-col items-center min-h-[60vh] max-w-4xl mx-auto">
+                        <div className="pt-10 sm:pt-12 md:pt-20 px-4 sm:px-6 flex flex-col items-center min-h-[60vh] max-w-4xl mx-auto">
                             <h2 className="font-black text-3xl md:text-4xl text-white uppercase tracking-widest text-center mb-2">Selecione a Loja</h2>
                             <p className="text-gray-400 text-base md:text-lg text-center mb-10 md:mb-14">Escolha de qual unidade você deseja pedir hoje.</p>
                             <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -1936,7 +2016,7 @@ const App = () => {
                                     <img src={restaurante.foto_capa_url} alt="Capa" className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-[#2b2a2d]"></div>
                                 </div>
-                                <div className="w-36 h-36 md:w-56 md:h-56 rounded-full border-4 md:border-8 border-[#d79e51] flex flex-col items-center justify-center -mt-18 md:-mt-28 z-10 bg-[#1f1e22] shadow-[0_15px_40px_rgba(0,0,0,0.6)] overflow-hidden relative">
+                                <div className="w-32 h-32 sm:w-36 sm:h-36 md:w-56 md:h-56 rounded-full border-4 md:border-8 border-[#d79e51] flex flex-col items-center justify-center -mt-[64px] sm:-mt-[72px] md:-mt-28 z-10 bg-[#1f1e22] shadow-[0_15px_40px_rgba(0,0,0,0.6)] overflow-hidden relative">
                                     {restaurante.logo_url ? (
                                         <img src={restaurante.logo_url} alt="Logo" className="w-full h-full object-cover" />
                                     ) : (
@@ -1989,7 +2069,7 @@ const App = () => {
 
                     {/* View Cardapio */}
                     {view === 'cardapio' && (
-                        <div className="pt-6 px-4 md:px-10 max-w-[1400px] mx-auto">
+                        <div className="pt-4 sm:pt-6 px-3 sm:px-4 md:px-8 lg:px-10 max-w-[1400px] mx-auto min-w-0">
                             <div className="sticky top-0 bg-[#2b2a2d]/95 backdrop-blur-xl z-20 pb-4 pt-4 md:pt-6 mb-6 md:mb-10 border-b border-gray-800">
                                 <h2 className="font-black text-2xl md:text-4xl text-white uppercase tracking-widest text-center">Nosso Cardápio</h2>
                             </div>
@@ -2015,12 +2095,12 @@ const App = () => {
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                                                 {prods.map(p => (
-                                                    <div key={p.id} className="bg-[#363539] rounded-3xl p-3 md:p-5 flex shadow-md border border-gray-700/50 h-full hover:border-[#d79e51]/50 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer" onClick={() => abrirDetalheItem(p)}>
-                                                        <div className="overflow-hidden rounded-2xl w-28 h-28 md:w-40 md:h-40 flex-shrink-0 relative">
+                                                    <div key={p.id} className="bg-[#363539] rounded-2xl sm:rounded-3xl p-3 md:p-5 flex flex-col sm:flex-row shadow-md border border-gray-700/50 h-full hover:border-[#d79e51]/50 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer" onClick={() => abrirDetalheItem(p)}>
+                                                        <div className="overflow-hidden rounded-2xl w-full h-40 sm:w-28 sm:h-28 md:w-40 md:h-40 flex-shrink-0 relative">
                                                             <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
                                                             <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
                                                         </div>
-                                                        <div className="ml-4 md:ml-6 flex flex-col justify-between flex-grow min-w-0 py-1 md:py-2">
+                                                        <div className="mt-3 sm:mt-0 sm:ml-4 md:ml-6 flex flex-col justify-between flex-grow min-w-0 py-1 md:py-2">
                                                             <div>
                                                                 <h4 className="text-white text-lg md:text-2xl font-bold leading-tight truncate group-hover:text-[#d79e51] transition-colors">{p.nome}</h4>
                                                                 <p className="text-gray-400 text-xs md:text-sm mt-1.5 md:mt-2.5 line-clamp-2 md:line-clamp-3 leading-relaxed">{p.descricao}</p>
@@ -2042,7 +2122,7 @@ const App = () => {
 
                     {/* View Carrinho */}
                     {view === 'carrinho' && (
-                        <div className="pt-6 px-4 md:px-10 max-w-[1400px] mx-auto">
+                        <div className="pt-4 sm:pt-6 px-3 sm:px-4 md:px-8 lg:px-10 max-w-[1400px] mx-auto min-w-0">
                             <div className="sticky top-0 bg-[#2b2a2d]/95 backdrop-blur-xl z-20 pb-4 pt-4 md:pt-6 mb-6 md:mb-10 border-b border-gray-800">
                                 <h2 className="font-black text-2xl md:text-4xl text-white uppercase tracking-widest text-center">Seu Pedido</h2>
                             </div>
@@ -2062,7 +2142,7 @@ const App = () => {
                                         <h3 className="text-white font-black uppercase tracking-wider text-lg md:text-2xl border-b border-gray-800 pb-3 md:pb-4 mb-4 md:mb-6 flex items-center"><i className="fas fa-list-ul text-[#d79e51] mr-3"></i> Itens do Pedido</h3>
                                         {carrinho.map((item, index) => (
                                             <div key={item.cartKey || `${item.id}-${index}`} className="bg-[#363539] rounded-2xl md:rounded-3xl p-4 md:p-6 border border-gray-700/50 shadow-md hover:border-gray-500 transition-colors">
-                                                <div className="flex justify-between items-start mb-3 md:mb-4">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-3 mb-3 md:mb-4">
                                                     <h4 className="font-bold text-white text-base md:text-xl pr-4">{item.nome}</h4>
                                                     <span className="text-[#d79e51] font-black text-lg md:text-2xl whitespace-nowrap">R$ {(item.preco * item.quantidade).toFixed(2).replace('.', ',')}</span>
                                                 </div>
@@ -2121,7 +2201,7 @@ const App = () => {
 
                                             <div>
                                                 <h4 className="text-white font-black uppercase tracking-wider mb-4 md:mb-5 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center"><i className="fas fa-wallet text-[#d79e51] mr-3"></i> 2. Pagamento</h4>
-                                                <div className="grid grid-cols-2 gap-3 md:gap-4 mb-4">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-4">
                                                     <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Cartão'})} className={`py-3.5 md:py-4 rounded-xl text-sm md:text-lg font-bold transition-all border-2 ${checkoutForm.pagamento === 'Cartão' ? 'border-[#d79e51] bg-[#d79e51]/10 text-[#d79e51] shadow-inner' : 'border-gray-700 bg-[#1a191c] text-gray-400 hover:border-gray-500 hover:bg-[#242326]'}`}><i className="fas fa-credit-card mr-2"></i> Cartão</button>
                                                     <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Dinheiro'})} className={`py-3.5 md:py-4 rounded-xl text-sm md:text-lg font-bold transition-all border-2 ${checkoutForm.pagamento === 'Dinheiro' ? 'border-[#d79e51] bg-[#d79e51]/10 text-[#d79e51] shadow-inner' : 'border-gray-700 bg-[#1a191c] text-gray-400 hover:border-gray-500 hover:bg-[#242326]'}`}><i className="fas fa-money-bill-wave mr-2"></i> Dinheiro</button>
                                                 </div>
@@ -2162,7 +2242,7 @@ const App = () => {
 
                     {/* View Pedidos */}
                     {view === 'pedidos' && (
-                        <div className="pt-6 px-4 md:px-10 max-w-[1400px] mx-auto">
+                        <div className="pt-4 sm:pt-6 px-3 sm:px-4 md:px-8 lg:px-10 max-w-[1400px] mx-auto min-w-0">
                             <div className="sticky top-0 bg-[#2b2a2d]/95 backdrop-blur-xl z-20 pb-4 pt-4 md:pt-6 mb-6 md:mb-10 border-b border-gray-800">
                                 <h2 className="font-black text-2xl md:text-4xl text-white uppercase tracking-widest text-center">Meus Pedidos</h2>
                             </div>
@@ -2313,7 +2393,7 @@ const App = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3 md:gap-5 mt-6 md:mt-8">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-5 mt-6 md:mt-8">
                                         <button onClick={() => setClienteAuth(false)} className="w-full bg-[#363539] border border-gray-700 text-white py-4 md:py-5 rounded-2xl font-bold text-sm md:text-base uppercase tracking-wider hover:bg-[#d79e51] hover:text-[#1a191c] hover:border-[#d79e51] transition-all shadow-md">Editar Perfil</button>
                                         <button onClick={() => {setClienteAuth(false); setClienteDados({nome:'', celular:'', cep:'', endereco:'', referencia:'', lat:null, lng:null}); setErroCep(''); localStorage.removeItem('cliente_nome'); localStorage.removeItem('cliente_celular'); localStorage.removeItem('cliente_cep'); localStorage.removeItem('cliente_endereco'); localStorage.removeItem('cliente_referencia');}} className="w-full bg-[#1a191c] border border-red-900/50 text-red-400 py-4 md:py-5 rounded-2xl font-bold text-sm md:text-base uppercase tracking-wider hover:bg-red-900/20 hover:text-red-300 transition-all shadow-md">Sair da Conta</button>
                                     </div>
@@ -2328,7 +2408,7 @@ const App = () => {
 
                     {/* View Login Admin */}
                     {view === 'admin-login' && (
-                        <div className="pt-16 md:pt-24 flex flex-col items-center px-6 min-h-[60vh] max-w-md md:max-w-lg mx-auto">
+                        <div className="pt-10 sm:pt-16 md:pt-24 flex flex-col items-center px-4 sm:px-6 min-h-[60vh] max-w-md md:max-w-lg mx-auto">
                             <div className="w-20 h-20 md:w-24 md:h-24 bg-[#1f1e22] rounded-full flex items-center justify-center mb-6 md:mb-8 shadow-inner border-2 border-[#d79e51]/30">
                                 <i className="fas fa-user-shield text-4xl md:text-5xl text-[#d79e51]"></i>
                             </div>
@@ -2359,29 +2439,29 @@ const App = () => {
                 </div>
 
                 {/* Navbar Inferior Responsiva (Dock Flutuante no Desktop) */}
-                <div className="fixed bottom-0 md:bottom-8 left-0 right-0 w-full max-w-md md:max-w-3xl lg:max-w-5xl mx-auto bg-[#1a191c]/95 md:bg-[#242326]/90 backdrop-blur-xl border-t md:border border-gray-800 flex justify-around items-center z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] md:shadow-[0_20px_50px_rgba(0,0,0,0.8)] py-1.5 md:py-3 pb-safe md:pb-3 md:rounded-[2rem]">
+                <div className="fixed bottom-0 md:bottom-6 lg:bottom-8 left-0 right-0 w-full max-w-md md:max-w-3xl lg:max-w-5xl mx-auto bg-[#1a191c]/95 md:bg-[#242326]/90 backdrop-blur-xl border-t md:border border-gray-800 flex justify-around items-center z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] md:shadow-[0_20px_50px_rgba(0,0,0,0.8)] py-1 md:py-3 px-1 sm:px-2 pb-safe md:pb-3 md:rounded-[2rem]">
                     <button onClick={() => setView('home')} className={`flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'home' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
                         <i className={`fas fa-home text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'home' ? 'animate-bounce-short' : ''}`}></i>
-                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">Início</span>
+                        <span className="text-[8px] sm:text-[9px] md:text-xs font-bold uppercase tracking-wide sm:tracking-widest">Início</span>
                     </button>
                     <button onClick={() => setView('cardapio')} className={`flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'cardapio' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
                         <i className={`fas fa-book-open text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'cardapio' ? 'animate-bounce-short' : ''}`}></i>
-                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">Cardápio</span>
+                        <span className="text-[8px] sm:text-[9px] md:text-xs font-bold uppercase tracking-wide sm:tracking-widest">Cardápio</span>
                     </button>
                     <button onClick={() => setView('pedidos')} className={`flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'pedidos' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
                         <i className={`fas fa-receipt text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'pedidos' ? 'animate-bounce-short' : ''}`}></i>
-                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">Pedidos</span>
+                        <span className="text-[8px] sm:text-[9px] md:text-xs font-bold uppercase tracking-wide sm:tracking-widest">Pedidos</span>
                     </button>
                     <button onClick={() => setView('carrinho')} className={`relative flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'carrinho' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
                         <div className="relative">
                             <i className={`fas fa-shopping-bag text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'carrinho' ? 'animate-bounce-short' : ''}`}></i>
                             {badgeCount > 0 && <span className="absolute -top-2 -right-3 md:-top-3 md:-right-4 bg-red-500 border-2 border-[#1a191c] md:border-[#242326] text-white text-[10px] md:text-xs font-black min-w-[20px] md:min-w-[24px] h-[20px] md:h-[24px] px-1 rounded-full flex items-center justify-center shadow-md animate-pulse">{badgeCount}</span>}
                         </div>
-                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest mt-0.5 md:mt-1">Carrinho</span>
+                        <span className="text-[8px] sm:text-[9px] md:text-xs font-bold uppercase tracking-wide sm:tracking-widest mt-0.5 md:mt-1">Carrinho</span>
                     </button>
                     <button onClick={() => setView('perfil')} className={`flex flex-col items-center justify-center space-y-1 w-1/5 py-2 md:py-2.5 transition-all duration-300 rounded-2xl md:hover:bg-[#363539] ${view === 'perfil' ? 'text-[#d79e51] md:bg-[#363539]' : 'text-gray-400 hover:text-white'}`}>
                         <i className={`fas fa-user text-xl md:text-[28px] mb-0.5 md:mb-1 ${view === 'perfil' ? 'animate-bounce-short' : ''}`}></i>
-                        <span className="text-[9px] md:text-xs font-bold uppercase tracking-widest">Perfil</span>
+                        <span className="text-[8px] sm:text-[9px] md:text-xs font-bold uppercase tracking-wide sm:tracking-widest">Perfil</span>
                     </button>
                 </div>
 
@@ -2404,14 +2484,14 @@ const App = () => {
 
                 {/* Modal de Detalhe do Produto */}
                 {itemSelecionado && (
-                    <div className="fixed inset-0 bg-black/80 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
-                        <div className="bg-[#242326] border border-gray-700 rounded-3xl w-full max-w-lg flex flex-col max-h-[90vh] shadow-[0_15px_50px_rgba(0,0,0,0.6)] overflow-hidden animate-fade-in relative">
+                    <div className="fixed inset-0 bg-black/80 z-[80] flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
+                        <div className="dogs-mobile-modal bg-[#242326] border border-gray-700 rounded-3xl w-full max-w-lg flex flex-col max-h-[90vh] shadow-[0_15px_50px_rgba(0,0,0,0.6)] overflow-hidden animate-fade-in relative">
                             
                             <button onClick={fecharDetalheItem} className="absolute top-4 right-4 w-10 h-10 bg-black/50 hover:bg-black text-white rounded-full flex items-center justify-center z-10 transition-colors backdrop-blur-md">
                                 <i className="fas fa-times text-lg"></i>
                             </button>
 
-                            <div className="w-full h-48 md:h-64 relative bg-gray-900 flex-shrink-0">
+                            <div className="w-full h-40 sm:h-48 md:h-64 relative bg-gray-900 flex-shrink-0">
                                 <img src={itemSelecionado.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={itemSelecionado.nome} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-[#242326] to-transparent"></div>
                             </div>
