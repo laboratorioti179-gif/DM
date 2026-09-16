@@ -2,6 +2,30 @@ import React, { useState, useEffect, useRef } from 'react';
 
 /* eslint-disable */
 
+// Padroniza a categoria antiga "Cachorros" para "HOT-DOG" sem alterar os IDs.
+// Assim, produtos já vinculados à categoria continuam funcionando normalmente.
+const normalizarNomeCategoria = (nome = '') => {
+    const chave = String(nome)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase()
+        .replace(/[_\s]+/g, '-')
+        .replace(/-+/g, '-');
+
+    if (['cachorro', 'cachorros', 'hot-dog', 'hotdog'].includes(chave)) {
+        return 'HOT-DOG';
+    }
+
+    return nome;
+};
+
+const normalizarCategoriasExibicao = (lista = []) =>
+    (Array.isArray(lista) ? lista : []).map(categoria => ({
+        ...categoria,
+        nome: normalizarNomeCategoria(categoria?.nome || '')
+    }));
+
 const App = () => {
     const [view, setView] = useState('selecionar_loja');
     const [carrinho, setCarrinho] = useState([]);
@@ -25,7 +49,7 @@ const App = () => {
         if (typeof window === 'undefined') return [];
         try {
             const cache = localStorage.getItem('dogs_categorias_cache');
-            return cache ? JSON.parse(cache) : [];
+            return cache ? normalizarCategoriasExibicao(JSON.parse(cache)) : [];
         } catch (e) {
             return [];
         }
@@ -853,7 +877,7 @@ const App = () => {
 
             if (error) throw error;
 
-            const catData = data || [];
+            const catData = normalizarCategoriasExibicao(data || []);
             setCategorias(catData);
             salvarCacheSeguro('dogs_categorias_cache', catData);
             return catData;
@@ -1668,45 +1692,319 @@ const App = () => {
     const imprimirNota = (pedido) => {
         let info = {};
         if (typeof pedido.itens === 'string') {
-            try { info = JSON.parse(pedido.itens); } catch(e) {}
+            try { info = JSON.parse(pedido.itens); } catch (e) {}
         } else {
             info = pedido.itens || {};
         }
-        
-        const lanchesHtml = info.lanches ? info.lanches.map(l => 
-            `${l.quantidade}x ${l.nome} ${l.observacao ? `(Obs: ${l.observacao})` : ''} - R$ ${(l.quantidade * l.preco).toFixed(2).replace('.',',')}`
-        ).join('<br/>') : '';
 
-        const d = new Date(pedido.created_at || Date.now());
-        const dataFormat = d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR');
+        // Escapa conteúdo vindo do cliente/produto antes de inserir no HTML da impressão.
+        const escapeHtml = (valor = '') => String(valor)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
 
-        const win = window.open('', '_blank', 'width=350,height=600');
+        const formatarMoeda = (valor) =>
+            Number(valor || 0).toFixed(2).replace('.', ',');
+
+        const itens = Array.isArray(info.lanches) ? info.lanches : [];
+
+        const itensHtml = itens.map((item) => {
+            const qtd = Number(item.quantidade || 0);
+            const preco = Number(item.preco || 0);
+            const totalItem = qtd * preco;
+            const obs = String(item.observacao || '').trim();
+
+            return `
+                <div class="item">
+                    <div class="item-linha">
+                        <span class="item-nome">${qtd}x ${escapeHtml(item.nome || 'Item')}</span>
+                        <span class="item-valor">R$ ${formatarMoeda(totalItem)}</span>
+                    </div>
+                    <div class="item-unitario">R$ ${formatarMoeda(preco)} un.</div>
+                    ${obs ? `<div class="item-obs"><strong>OBS:</strong> ${escapeHtml(obs)}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        const dataPedido = new Date(pedido.created_at || Date.now());
+        const dataFormatada = dataPedido.toLocaleDateString('pt-BR');
+        const horaFormatada = dataPedido.toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        const subtotal = Number(
+            info.subtotal ??
+            (Number(pedido.total || 0) - Number(info.taxa_entrega || 0))
+        );
+        const taxaEntrega = Number(info.taxa_entrega || 0);
+        const total = Number(pedido.total || 0);
+        const tipoRecebimento = String(info.tipo_recebimento || '').toLowerCase();
+        const ehEntrega = tipoRecebimento === 'entrega' || (info.endereco && info.endereco !== 'Retirada');
+        const tituloRecebimento = ehEntrega ? 'ENTREGA' : 'RETIRADA';
+
+        const idPedido = String(pedido.id || '').toUpperCase();
+        const numeroCurto = idPedido.substring(0, 8);
+
+        // A TM-T20X usa bobina de 80 mm (79,5 mm nominal).
+        // O conteúdo é limitado a ~72 mm para respeitar a área útil do driver.
+        const win = window.open('', '_blank', 'width=420,height=780');
+
+        if (!win) {
+            alert('O navegador bloqueou a janela de impressão. Libere pop-ups para imprimir a nota.');
+            return;
+        }
+
+        win.document.open();
         win.document.write(`
-            <html><head><style>body{font-family:monospace; margin:10px;} hr{border-top:1px dashed #000;}</style></head>
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>Pedido ${escapeHtml(numeroCurto)}</title>
+                <style>
+                    @page {
+                        size: 80mm auto;
+                        margin: 0;
+                    }
+
+                    * {
+                        box-sizing: border-box;
+                    }
+
+                    html, body {
+                        width: 80mm;
+                        margin: 0;
+                        padding: 0;
+                        background: #fff;
+                        color: #000;
+                        font-family: "Courier New", Courier, monospace;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+
+                    body {
+                        font-size: 11.5px;
+                        line-height: 1.25;
+                    }
+
+                    .receipt {
+                        width: 72mm;
+                        margin: 0 auto;
+                        padding: 3mm 0 5mm;
+                        overflow: hidden;
+                    }
+
+                    .center { text-align: center; }
+                    .right { text-align: right; }
+                    .bold { font-weight: 700; }
+                    .uppercase { text-transform: uppercase; }
+
+                    .loja {
+                        font-size: 16px;
+                        font-weight: 900;
+                        line-height: 1.1;
+                        text-transform: uppercase;
+                        overflow-wrap: anywhere;
+                    }
+
+                    .pedido-numero {
+                        font-size: 14px;
+                        font-weight: 900;
+                        margin-top: 1.5mm;
+                    }
+
+                    .tipo {
+                        display: inline-block;
+                        margin-top: 1.5mm;
+                        border: 1px solid #000;
+                        padding: 1mm 3mm;
+                        font-size: 13px;
+                        font-weight: 900;
+                    }
+
+                    .separador {
+                        border: 0;
+                        border-top: 1px dashed #000;
+                        margin: 2.5mm 0;
+                    }
+
+                    .linha {
+                        display: flex;
+                        justify-content: space-between;
+                        gap: 2mm;
+                    }
+
+                    .quebra {
+                        overflow-wrap: anywhere;
+                        word-break: break-word;
+                    }
+
+                    .titulo-bloco {
+                        font-size: 12px;
+                        font-weight: 900;
+                        margin-bottom: 1.5mm;
+                    }
+
+                    .item {
+                        margin-bottom: 2.2mm;
+                        page-break-inside: avoid;
+                    }
+
+                    .item-linha {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-start;
+                        gap: 2mm;
+                        font-weight: 700;
+                    }
+
+                    .item-nome {
+                        flex: 1;
+                        overflow-wrap: anywhere;
+                    }
+
+                    .item-valor {
+                        white-space: nowrap;
+                    }
+
+                    .item-unitario {
+                        font-size: 10px;
+                        margin-top: 0.4mm;
+                    }
+
+                    .item-obs {
+                        font-size: 10.5px;
+                        margin-top: 0.8mm;
+                        padding-left: 2mm;
+                        border-left: 2px solid #000;
+                        overflow-wrap: anywhere;
+                    }
+
+                    .total-linha {
+                        display: flex;
+                        justify-content: space-between;
+                        gap: 2mm;
+                        margin: 0.7mm 0;
+                    }
+
+                    .total-final {
+                        font-size: 16px;
+                        font-weight: 900;
+                        margin-top: 1.5mm;
+                    }
+
+                    .rodape {
+                        margin-top: 3mm;
+                        font-size: 10.5px;
+                        text-align: center;
+                    }
+
+                    .espaco-corte {
+                        height: 7mm;
+                    }
+
+                    @media screen {
+                        body {
+                            margin: 0 auto;
+                        }
+                        .receipt {
+                            box-shadow: 0 0 10px rgba(0,0,0,.15);
+                        }
+                    }
+
+                    @media print {
+                        html, body {
+                            width: 80mm !important;
+                            min-width: 80mm !important;
+                            max-width: 80mm !important;
+                        }
+                        .receipt {
+                            width: 72mm !important;
+                            margin: 0 auto !important;
+                            box-shadow: none !important;
+                        }
+                    }
+                </style>
+            </head>
             <body>
-                <h3 style="text-align:center; margin-bottom:5px;">${restaurante.nome}</h3>
-                <h4 style="text-align:center; margin-top:0;">PEDIDO #${pedido.id.toUpperCase()}</h4>
-                <div style="text-align:center; font-size:12px;">${dataFormat}</div>
-                <hr/>
-                <div>Cliente: ${pedido.cliente_nome}</div>
-                <div>Tel: ${pedido.cliente_celular}</div>
-                <hr/>
-                <div><b>ITENS:</b><br/>${lanchesHtml}</div>
-                <hr/>
-                ${Number(info.taxa_entrega || 0) > 0 ? `<div>Subtotal: R$ ${Number(info.subtotal || (Number(pedido.total) - Number(info.taxa_entrega || 0))).toFixed(2).replace('.',',')}</div><div>Taxa de entrega: R$ ${Number(info.taxa_entrega).toFixed(2).replace('.',',')}</div>` : ''}
-                <div><b>Total: R$ ${Number(pedido.total).toFixed(2).replace('.',',')}</b></div>
-                <hr/>
-                <div>Endereço: ${info.endereco || 'Retirada'}</div>
-                ${info.referencia ? `<div>Ref: ${info.referencia}</div>` : ''}
-                <div>Pagamento: ${info.pagamento} ${info.troco ? '(Troco: '+info.troco+')' : ''}</div>
-                <hr/>
-                <div style="text-align:center; font-size:12px; margin-top:10px;">Obrigado pela preferência!</div>
-                <script>window.print(); window.close();</script>
-            </body></html>
+                <main class="receipt">
+                    <div class="center loja">${escapeHtml(restaurante.nome || 'DOGS DO MIRSO')}</div>
+                    <div class="center pedido-numero">PEDIDO #${escapeHtml(numeroCurto)}</div>
+                    <div class="center">${escapeHtml(dataFormatada)} - ${escapeHtml(horaFormatada)}</div>
+                    <div class="center"><span class="tipo">${tituloRecebimento}</span></div>
+
+                    <hr class="separador" />
+
+                    <div class="titulo-bloco">CLIENTE</div>
+                    <div class="quebra"><strong>Nome:</strong> ${escapeHtml(pedido.cliente_nome || '-')}</div>
+                    <div class="quebra"><strong>Telefone:</strong> ${escapeHtml(pedido.cliente_celular || '-')}</div>
+
+                    <hr class="separador" />
+
+                    <div class="titulo-bloco">ITENS DO PEDIDO</div>
+                    ${itensHtml || '<div>Nenhum item informado.</div>'}
+
+                    <hr class="separador" />
+
+                    <div class="total-linha">
+                        <span>Subtotal</span>
+                        <span>R$ ${formatarMoeda(subtotal)}</span>
+                    </div>
+                    ${taxaEntrega > 0 ? `
+                        <div class="total-linha">
+                            <span>Taxa de entrega</span>
+                            <span>R$ ${formatarMoeda(taxaEntrega)}</span>
+                        </div>
+                    ` : ''}
+                    <div class="total-linha total-final">
+                        <span>TOTAL</span>
+                        <span>R$ ${formatarMoeda(total)}</span>
+                    </div>
+
+                    <hr class="separador" />
+
+                    <div class="titulo-bloco">${tituloRecebimento}</div>
+                    ${ehEntrega ? `
+                        <div class="quebra"><strong>Endereço:</strong> ${escapeHtml(info.endereco || '-')}</div>
+                        ${info.referencia ? `<div class="quebra"><strong>Referência:</strong> ${escapeHtml(info.referencia)}</div>` : ''}
+                    ` : '<div>Retirada no balcão.</div>'}
+
+                    <div class="quebra" style="margin-top:1.5mm;">
+                        <strong>Pagamento:</strong> ${escapeHtml(info.pagamento || '-')}
+                    </div>
+                    ${info.troco ? `<div class="quebra"><strong>Troco para:</strong> ${escapeHtml(info.troco)}</div>` : ''}
+
+                    <hr class="separador" />
+
+                    <div class="rodape">
+                        Obrigado pela preferência!<br/>
+                        ${escapeHtml(restaurante.nome || 'DOGS DO MIRSO')}
+                    </div>
+                    <div class="espaco-corte"></div>
+                </main>
+
+                <script>
+                    window.addEventListener('load', function () {
+                        setTimeout(function () {
+                            window.focus();
+                            window.print();
+                        }, 250);
+                    });
+
+                    window.addEventListener('afterprint', function () {
+                        window.close();
+                    });
+                <\/script>
+            </body>
+            </html>
         `);
         win.document.close();
     };
-    
+
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (file) {
