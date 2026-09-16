@@ -56,7 +56,9 @@ const App = () => {
     });
     const [pedidosAdmin, setPedidosAdmin] = useState([]);
     const [clienteAuth, setClienteAuth] = useState(false);
-    const [clienteDados, setClienteDados] = useState({ nome: '', celular: '', cep: '', endereco: '', referencia: '', lat: null, lng: null });
+    const [clienteDados, setClienteDados] = useState({ nome: '', celular: '', cep: '', endereco: '', referencia: '', bairro: '', lat: null, lng: null, taxa_entrega_calculada: 5 });
+    const [bairroLoja, setBairroLoja] = useState('');
+    const [distanciaEntrega, setDistanciaEntrega] = useState(null);
     const [erroCep, setErroCep] = useState('');
     const [cepBuscando, setCepBuscando] = useState(false);
     const [meusPedidos, setMeusPedidos] = useState([]);
@@ -198,6 +200,21 @@ const App = () => {
     };
 
 
+    const normalizarBairro = (valor = '') =>
+        String(valor || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .toLowerCase();
+
+    const bairrosIguais = (bairroA, bairroB) => {
+        const a = normalizarBairro(bairroA);
+        const b = normalizarBairro(bairroB);
+        return Boolean(a && b && a === b);
+    };
+
+
     // Geocodificação resiliente para CEPs brasileiros.
     // 1) ViaCEP resolve o endereço textual.
     // 2) BrasilAPI CEP v2 tenta fornecer latitude/longitude diretamente.
@@ -326,7 +343,8 @@ const App = () => {
                 return;
             }
 
-            // Salva o CEP assim que ele é reconhecido pelo ViaCEP.
+            // Salva o CEP e guarda o bairro da loja para o cálculo automático do frete.
+            setBairroLoja(data.bairro || '');
             setRestaurante(prev => ({
                 ...prev,
                 cep: cepInput
@@ -377,10 +395,37 @@ const App = () => {
                 return;
             }
 
+            let bairroOrigem = bairroLoja;
+
+            if (!bairroOrigem && restaurante.cep) {
+                try {
+                    const cepLojaLimpo = String(restaurante.cep).replace(/\D/g, '');
+
+                    if (cepLojaLimpo.length === 8) {
+                        const resLoja = await fetch(`https://viacep.com.br/ws/${cepLojaLimpo}/json/`);
+                        const dadosLoja = await resLoja.json();
+
+                        if (!dadosLoja.erro) {
+                            bairroOrigem = dadosLoja.bairro || '';
+                            setBairroLoja(bairroOrigem);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Não foi possível atualizar o bairro da loja.', e);
+                }
+            }
+
+            // FRETE AUTOMÁTICO:
+            // R$ 2,00 no mesmo bairro da loja.
+            // R$ 5,00 para outros bairros, desde que estejam dentro do raio máximo.
+            const mesmoBairro = bairrosIguais(bairroOrigem, data.bairro);
+            const taxaEntregaCalculada = mesmoBairro ? 2 : 5;
+
             const local = await geocodificarCep(cepLimpo, data);
 
             let lat = null;
             let lng = null;
+            let dist = null;
 
             if (local) {
                 lat = local.lat;
@@ -389,7 +434,9 @@ const App = () => {
                 const lojaLat = Number(restaurante.lat) || -23.5329;
                 const lojaLng = Number(restaurante.lng) || -46.7920;
                 const raioEntrega = Number(restaurante.raio_entrega) || 5;
-                const dist = calcularDistancia(lojaLat, lojaLng, lat, lng);
+
+                dist = calcularDistancia(lojaLat, lojaLng, lat, lng);
+                setDistanciaEntrega(dist);
 
                 if (dist > raioEntrega) {
                     setErroCep(
@@ -400,11 +447,18 @@ const App = () => {
                     setErroCep('');
                 }
 
-                console.info(`CEP do cliente geocodificado por ${local.fonte}:`, lat, lng);
+                console.info(
+                    `CEP do cliente geocodificado por ${local.fonte}:`,
+                    lat,
+                    lng,
+                    `| Distância: ${dist.toFixed(2)} km`,
+                    `| Frete: R$ ${taxaEntregaCalculada.toFixed(2)}`
+                );
             } else {
+                setDistanciaEntrega(null);
                 setErroCep(
                     'CEP encontrado, mas não foi possível validar a distância automaticamente. ' +
-                    'Confirme o endereço com a loja antes de concluir o pedido.'
+                    'A taxa foi calculada pelo bairro; confirme o endereço com a loja antes de concluir o pedido.'
                 );
             }
 
@@ -418,8 +472,10 @@ const App = () => {
                 ...prev,
                 cep: cepInput,
                 endereco: partesEndereco.join(', '),
+                bairro: data.bairro || '',
                 lat,
-                lng
+                lng,
+                taxa_entrega_calculada: taxaEntregaCalculada
             }));
 
         } catch (err) {
@@ -430,7 +486,7 @@ const App = () => {
         }
     };
 
-    
+
     const cadastrarNovaLoja = async () => {
         if (!supabase) return;
         if (!novaLojaForm.nome) {
@@ -789,6 +845,8 @@ const App = () => {
             localStorage.setItem('cliente_cep', clienteDados.cep || '');
             localStorage.setItem('cliente_endereco', clienteDados.endereco || '');
             localStorage.setItem('cliente_referencia', clienteDados.referencia || '');
+            localStorage.setItem('cliente_bairro', clienteDados.bairro || '');
+            localStorage.setItem('cliente_taxa_entrega', String(clienteDados.taxa_entrega_calculada ?? 5));
             setClienteAuth(true);
             setAuthUserId(usuario.id);
 
@@ -1091,15 +1149,51 @@ const App = () => {
         const cep = localStorage.getItem('cliente_cep') || '';
         const end = localStorage.getItem('cliente_endereco') || '';
         const ref = localStorage.getItem('cliente_referencia') || '';
-        
+        const bairro = localStorage.getItem('cliente_bairro') || '';
+        const taxaEntrega = Number(localStorage.getItem('cliente_taxa_entrega') || 5);
+
         if (nome && cel) {
             setClienteAuth(true);
-            setClienteDados({ nome, celular: cel, cep, endereco: end, referencia: ref });
+            setClienteDados({
+                nome,
+                celular: cel,
+                cep,
+                endereco: end,
+                referencia: ref,
+                bairro,
+                lat: null,
+                lng: null,
+                taxa_entrega_calculada: Number.isFinite(taxaEntrega) ? taxaEntrega : 5
+            });
         }
-        
+
         // O webhook não é mais salvo no localStorage.
         // Cada restaurante carrega sua própria URL privada do Supabase após o login administrativo.
     }, []);
+
+    useEffect(() => {
+        const cepLojaLimpo = String(restaurante.cep || '').replace(/\D/g, '');
+
+        if (cepLojaLimpo.length !== 8) {
+            setBairroLoja('');
+            return;
+        }
+
+        let cancelado = false;
+
+        fetch(`https://viacep.com.br/ws/${cepLojaLimpo}/json/`)
+            .then(res => res.json())
+            .then(data => {
+                if (!cancelado && !data.erro) {
+                    setBairroLoja(data.bairro || '');
+                }
+            })
+            .catch(err => console.warn('Não foi possível carregar o bairro da loja.', err));
+
+        return () => {
+            cancelado = true;
+        };
+    }, [restaurante.cep]);
 
     useEffect(() => {
         if (!supabase) return;
@@ -1536,6 +1630,17 @@ const App = () => {
         clienteDados.lng
     ]);
 
+    const obterTaxaEntregaAtual = () => {
+        if (checkoutForm.tipo !== 'entrega') return 0;
+
+        if (bairrosIguais(bairroLoja, clienteDados.bairro)) {
+            return 2;
+        }
+
+        const taxaCalculada = Number(clienteDados.taxa_entrega_calculada);
+        return Number.isFinite(taxaCalculada) ? taxaCalculada : 5;
+    };
+
     const finalizarPedido = async () => {
         if (enviandoPedido) return;
 
@@ -1576,7 +1681,7 @@ const App = () => {
                 (sum, item) => sum + (Number(item.preco) * Number(item.quantidade)),
                 0
             );
-            const taxaCalc = checkoutForm.tipo === 'entrega' ? Number(restaurante.taxa_entrega || 0) : 0;
+            const taxaCalc = obterTaxaEntregaAtual();
             const totalCalc = subtotalCalc + taxaCalc;
             const itensLimpos = carrinho.map(({ cartKey, ...item }) => item);
 
@@ -1594,6 +1699,9 @@ const App = () => {
                     lanches: itensLimpos,
                     subtotal: subtotalCalc,
                     taxa_entrega: taxaCalc,
+                    bairro_cliente: clienteDados.bairro || '',
+                    bairro_loja: bairroLoja || '',
+                    distancia_entrega_km: distanciaEntrega,
                     tipo_recebimento: checkoutForm.tipo,
                     endereco: checkoutForm.tipo === 'entrega' ? clienteDados.endereco : 'Retirada',
                     referencia: checkoutForm.tipo === 'entrega' ? clienteDados.referencia : '',
@@ -1787,12 +1895,12 @@ const App = () => {
                     }
 
                     body {
-                        font-size: 14px;
-                        line-height: 1.25;
+                        font-size: 28px;
+                        line-height: 1.12;
                     }
 
                     .receipt {
-                        width: 72mm;
+                        width: 76mm;
                         margin: 0 auto;
                         padding: 3mm 0 5mm;
                         overflow: hidden;
@@ -1804,7 +1912,7 @@ const App = () => {
                     .uppercase { text-transform: uppercase; }
 
                     .loja {
-                        font-size: 20px;
+                        font-size: 40px;
                         font-weight: 900;
                         line-height: 1.1;
                         text-transform: uppercase;
@@ -1812,7 +1920,7 @@ const App = () => {
                     }
 
                     .pedido-numero {
-                        font-size: 17px;
+                        font-size: 34px;
                         font-weight: 900;
                         margin-top: 1.5mm;
                     }
@@ -1822,7 +1930,7 @@ const App = () => {
                         margin-top: 1.5mm;
                         border: 1px solid #000;
                         padding: 1mm 3mm;
-                        font-size: 15px;
+                        font-size: 30px;
                         font-weight: 900;
                     }
 
@@ -1844,7 +1952,7 @@ const App = () => {
                     }
 
                     .titulo-bloco {
-                        font-size: 14.5px;
+                        font-size: 29px;
                         font-weight: 900;
                         margin-bottom: 1.5mm;
                     }
@@ -1872,12 +1980,12 @@ const App = () => {
                     }
 
                     .item-unitario {
-                        font-size: 12.5px;
+                        font-size: 25px;
                         margin-top: 0.4mm;
                     }
 
                     .item-obs {
-                        font-size: 13px;
+                        font-size: 26px;
                         margin-top: 0.8mm;
                         padding-left: 2mm;
                         border-left: 2px solid #000;
@@ -1892,14 +2000,14 @@ const App = () => {
                     }
 
                     .total-final {
-                        font-size: 19px;
+                        font-size: 38px;
                         font-weight: 900;
                         margin-top: 1.5mm;
                     }
 
                     .rodape {
                         margin-top: 3mm;
-                        font-size: 12.5px;
+                        font-size: 25px;
                         text-align: center;
                     }
 
@@ -1923,7 +2031,7 @@ const App = () => {
                             max-width: 80mm !important;
                         }
                         .receipt {
-                            width: 72mm !important;
+                            width: 76mm !important;
                             margin: 0 auto !important;
                             box-shadow: none !important;
                         }
@@ -2067,7 +2175,7 @@ const App = () => {
     };
 
     const subtotalCarrinho = carrinho.reduce((sum, item) => sum + (Number(item.preco) * Number(item.quantidade)), 0);
-    const taxaEntregaCarrinho = checkoutForm.tipo === 'entrega' ? Number(restaurante.taxa_entrega || 0) : 0;
+    const taxaEntregaCarrinho = obterTaxaEntregaAtual();
     const totalCarrinho = subtotalCarrinho + taxaEntregaCarrinho;
     const badgeCount = carrinho.reduce((sum, item) => sum + item.quantidade, 0);
 
@@ -2297,8 +2405,11 @@ const App = () => {
                                                 <input type="number" value={restaurante.raio_entrega} onChange={(e) => setRestaurante({...restaurante, raio_entrega: Number(e.target.value)})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
                                             </div>
                                             <div>
-                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Taxa de Entrega (R$)</label>
-                                                <input type="number" min="0" step="0.01" value={restaurante.taxa_entrega ?? 0} onChange={(e) => setRestaurante({...restaurante, taxa_entrega: Number(e.target.value)})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-sm" />
+                                                <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">Frete Automático</label>
+                                                <div className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2 text-sm leading-relaxed">
+                                                    <span className="font-bold text-[#d79e51]">R$ 2,00</span> no mesmo bairro da loja<br />
+                                                    <span className="font-bold text-[#d79e51]">R$ 5,00</span> para outros bairros dentro do raio
+                                                </div>
                                             </div>
                                             <div className="md:col-span-2">
                                                 <label className="block text-gray-400 text-[10px] font-bold mb-2 uppercase tracking-wider">WhatsApp da Loja</label>
@@ -3040,7 +3151,18 @@ const App = () => {
                                             </div>
                                             {checkoutForm.tipo === 'entrega' && (
                                                 <div className="flex justify-between items-center mb-5 text-gray-400 text-sm md:text-base font-medium">
-                                                    <span>Taxa de Entrega</span>
+                                                    <span>
+                                                        Taxa de Entrega
+                                                        {clienteDados.bairro && (
+                                                            <span className="block text-[10px] md:text-xs text-gray-500 font-normal mt-0.5">
+                                                                {bairrosIguais(bairroLoja, clienteDados.bairro)
+                                                                    ? 'Mesmo bairro da loja'
+                                                                    : distanciaEntrega !== null
+                                                                        ? `Distância aprox. ${distanciaEntrega.toFixed(1)} km`
+                                                                        : 'Outro bairro'}
+                                                            </span>
+                                                        )}
+                                                    </span>
                                                     <span className="text-[#d79e51] font-bold">R$ {taxaEntregaCarrinho.toFixed(2).replace('.', ',')}</span>
                                                 </div>
                                             )}
