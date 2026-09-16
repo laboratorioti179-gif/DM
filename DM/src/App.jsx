@@ -173,86 +173,240 @@ const App = () => {
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     };
 
+
+    // Geocodificação resiliente para CEPs brasileiros.
+    // 1) ViaCEP resolve o endereço textual.
+    // 2) BrasilAPI CEP v2 tenta fornecer latitude/longitude diretamente.
+    // 3) Nominatim/OpenStreetMap entra como fallback, com consultas progressivas.
+    const geocodificarCep = async (cepInput, enderecoViaCep = null) => {
+        const cepLimpo = String(cepInput || '').replace(/\D/g, '');
+        if (cepLimpo.length !== 8) return null;
+
+        const coordenadasValidas = (lat, lng) => {
+            const latitude = Number(lat);
+            const longitude = Number(lng);
+            return Number.isFinite(latitude) && Number.isFinite(longitude) &&
+                latitude >= -90 && latitude <= 90 &&
+                longitude >= -180 && longitude <= 180;
+        };
+
+        // 1. BrasilAPI CEP v2 — normalmente já retorna coordenadas.
+        try {
+            const brasilRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepLimpo}`);
+            if (brasilRes.ok) {
+                const brasilData = await brasilRes.json();
+                const coords = brasilData?.location?.coordinates || {};
+                const lat = Number(coords.latitude);
+                const lng = Number(coords.longitude);
+
+                if (coordenadasValidas(lat, lng)) {
+                    return {
+                        lat,
+                        lng,
+                        fonte: 'BrasilAPI',
+                        endereco: brasilData
+                    };
+                }
+            }
+        } catch (err) {
+            console.warn('BrasilAPI não retornou coordenadas para o CEP:', err);
+        }
+
+        // 2. Nominatim/OpenStreetMap — fallback.
+        const endereco = enderecoViaCep || {};
+        const logradouro = String(endereco.logradouro || '').trim();
+        const bairro = String(endereco.bairro || '').trim();
+        const cidade = String(endereco.localidade || endereco.city || '').trim();
+        const uf = String(endereco.uf || endereco.state || '').trim();
+        const cepFormatado = `${cepLimpo.slice(0, 5)}-${cepLimpo.slice(5)}`;
+
+        const tentativas = [
+            // Consulta estruturada pelo CEP, mais precisa quando o OSM conhece o código postal.
+            {
+                postalcode: cepFormatado,
+                city: cidade,
+                state: uf,
+                country: 'Brasil'
+            },
+            {
+                q: [logradouro, bairro, cidade, uf, cepFormatado, 'Brasil'].filter(Boolean).join(', ')
+            },
+            {
+                q: [logradouro, bairro, cidade, uf, 'Brasil'].filter(Boolean).join(', ')
+            },
+            {
+                q: [cepFormatado, cidade, uf, 'Brasil'].filter(Boolean).join(', ')
+            },
+            {
+                q: [cepLimpo, 'Brasil'].filter(Boolean).join(', ')
+            }
+        ].filter(params => Object.values(params).some(Boolean));
+
+        for (let i = 0; i < tentativas.length; i++) {
+            try {
+                const params = new URLSearchParams({
+                    format: 'jsonv2',
+                    limit: '1',
+                    countrycodes: 'br',
+                    addressdetails: '1',
+                    'accept-language': 'pt-BR',
+                    ...tentativas[i]
+                });
+
+                const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+                if (!geoRes.ok) continue;
+
+                const geoData = await geoRes.json();
+                if (Array.isArray(geoData) && geoData.length > 0) {
+                    const lat = Number(geoData[0].lat);
+                    const lng = Number(geoData[0].lon);
+
+                    if (coordenadasValidas(lat, lng)) {
+                        return {
+                            lat,
+                            lng,
+                            fonte: 'Nominatim',
+                            endereco: geoData[0]
+                        };
+                    }
+                }
+
+                // Evita rajadas de requisições no serviço público do Nominatim.
+                if (i < tentativas.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1100));
+                }
+            } catch (err) {
+                console.warn(`Falha na tentativa ${i + 1} de geocodificação:`, err);
+            }
+        }
+
+        return null;
+    };
+
     const buscarCepLoja = async (cepInput) => {
-        const cepLimpo = cepInput.replace(/\D/g, '');
+        const cepLimpo = String(cepInput || '').replace(/\D/g, '');
         if (cepLimpo.length !== 8) return;
+
         setCepLojaBuscando(true);
         setErroCepLoja('');
+
         try {
+            // ViaCEP continua sendo a fonte principal para o endereço textual.
             const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+            if (!res.ok) throw new Error(`ViaCEP respondeu ${res.status}`);
+
             const data = await res.json();
+
             if (data.erro) {
-                setErroCepLoja('CEP não encontrado.');
-                setCepLojaBuscando(false);
+                setErroCepLoja('CEP não encontrado. Confira os 8 dígitos informados.');
                 return;
             }
-            
-            const q = `${data.logradouro}, ${data.localidade}, ${data.uf}, Brasil`;
-            const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
-            const geoData = await geoRes.json();
-            
-            if (geoData && geoData.length > 0) {
+
+            // Salva o CEP assim que ele é reconhecido pelo ViaCEP.
+            setRestaurante(prev => ({
+                ...prev,
+                cep: cepInput
+            }));
+
+            const local = await geocodificarCep(cepLimpo, data);
+
+            if (local) {
                 setRestaurante(prev => ({
                     ...prev,
                     cep: cepInput,
-                    lat: parseFloat(geoData[0].lat),
-                    lng: parseFloat(geoData[0].lon)
+                    lat: local.lat,
+                    lng: local.lng
                 }));
+
+                setErroCepLoja('');
+                console.info(`CEP da loja geocodificado por ${local.fonte}:`, local.lat, local.lng);
             } else {
-                 setErroCepLoja('Não foi possível obter a localização exata no mapa.');
+                // Não apaga coordenadas já salvas da loja caso o serviço externo falhe.
+                setErroCepLoja(
+                    'CEP encontrado, mas não foi possível obter as coordenadas automaticamente. ' +
+                    'Tente novamente em alguns instantes ou mantenha a localização já cadastrada.'
+                );
             }
         } catch (err) {
-            setErroCepLoja('Erro ao buscar CEP.');
+            console.error('Erro ao buscar CEP da loja:', err);
+            setErroCepLoja('Não foi possível consultar a localização agora. Tente novamente em alguns instantes.');
+        } finally {
+            setCepLojaBuscando(false);
         }
-        setCepLojaBuscando(false);
     };
 
     const buscarCep = async (cepInput) => {
-        const cepLimpo = cepInput.replace(/\D/g, '');
+        const cepLimpo = String(cepInput || '').replace(/\D/g, '');
         if (cepLimpo.length !== 8) return;
+
         setCepBuscando(true);
         setErroCep('');
+
         try {
             const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+            if (!res.ok) throw new Error(`ViaCEP respondeu ${res.status}`);
+
             const data = await res.json();
+
             if (data.erro) {
-                setErroCep('CEP não encontrado.');
-                setCepBuscando(false);
+                setErroCep('CEP não encontrado. Confira os 8 dígitos informados.');
                 return;
             }
-            
-            const q = `${data.logradouro}, ${data.localidade}, ${data.uf}, Brasil`;
-            const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
-            const geoData = await geoRes.json();
-            
+
+            const local = await geocodificarCep(cepLimpo, data);
+
             let lat = null;
             let lng = null;
-            if (geoData && geoData.length > 0) {
-                lat = parseFloat(geoData[0].lat);
-                lng = parseFloat(geoData[0].lon);
-                
-                const lojaLat = restaurante.lat || -23.5329;
-                const lojaLng = restaurante.lng || -46.7920;
+
+            if (local) {
+                lat = local.lat;
+                lng = local.lng;
+
+                const lojaLat = Number(restaurante.lat) || -23.5329;
+                const lojaLng = Number(restaurante.lng) || -46.7920;
+                const raioEntrega = Number(restaurante.raio_entrega) || 5;
                 const dist = calcularDistancia(lojaLat, lojaLng, lat, lng);
-                
-                if (dist > (restaurante.raio_entrega || 5)) {
-                    setErroCep(`Não fazemos entrega neste local. Distância: ${dist.toFixed(1)}km (Raio Máx: ${restaurante.raio_entrega}km).`);
+
+                if (dist > raioEntrega) {
+                    setErroCep(
+                        `Não fazemos entrega neste local. Distância aproximada: ${dist.toFixed(1)} km ` +
+                        `(raio máximo: ${raioEntrega} km).`
+                    );
+                } else {
+                    setErroCep('');
                 }
+
+                console.info(`CEP do cliente geocodificado por ${local.fonte}:`, lat, lng);
             } else {
-                 setErroCep('Atenção: Não foi possível validar a distância exata. Confirme com a loja.');
+                setErroCep(
+                    'CEP encontrado, mas não foi possível validar a distância automaticamente. ' +
+                    'Confirme o endereço com a loja antes de concluir o pedido.'
+                );
             }
-            
+
+            const partesEndereco = [
+                data.logradouro,
+                data.bairro,
+                `${data.localidade || ''}${data.uf ? ` - ${data.uf}` : ''}`
+            ].filter(Boolean);
+
             setClienteDados(prev => ({
                 ...prev,
-                endereco: `${data.logradouro}, , ${data.bairro}, ${data.localidade} - ${data.uf}`,
-                lat, lng
+                cep: cepInput,
+                endereco: partesEndereco.join(', '),
+                lat,
+                lng
             }));
+
         } catch (err) {
-            setErroCep('Erro ao buscar CEP.');
+            console.error('Erro ao buscar CEP do cliente:', err);
+            setErroCep('Não foi possível consultar o CEP agora. Tente novamente em alguns instantes.');
+        } finally {
+            setCepBuscando(false);
         }
-        setCepBuscando(false);
     };
 
+    
     const cadastrarNovaLoja = async () => {
         if (!supabase) return;
         if (!novaLojaForm.nome) {
