@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 
 /* eslint-disable */
 
-// Padroniza a categoria antiga "Cachorros" para "HOT-DOG" sem alterar os IDs.
-// Assim, produtos já vinculados à categoria continuam funcionando normalmente.
-const normalizarNomeCategoria = (nome = '') => {
-    const chave = String(nome)
+// Padroniza nomes antigos sem alterar os IDs das categorias já existentes.
+const chaveCategoria = (nome = '') =>
+    String(nome)
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .trim()
@@ -13,12 +12,28 @@ const normalizarNomeCategoria = (nome = '') => {
         .replace(/[_\s]+/g, '-')
         .replace(/-+/g, '-');
 
+const normalizarNomeCategoria = (nome = '') => {
+    const chave = chaveCategoria(nome);
+
     if (['cachorro', 'cachorros', 'hot-dog', 'hotdog'].includes(chave)) {
-        return 'HOT-DOG';
+        return 'Hot-Dog';
+    }
+
+    if (['sobremesa', 'sobremesas'].includes(chave)) {
+        return 'Sobremesa';
+    }
+
+    if (['adicional', 'adicionais'].includes(chave)) {
+        return 'Adicionais';
     }
 
     return nome;
 };
+
+const CATEGORIAS_EXTRAS_ADMIN = [
+    { idVirtual: '__categoria_sobremesa__', nome: 'Sobremesa' },
+    { idVirtual: '__categoria_adicionais__', nome: 'Adicionais' }
+];
 
 const normalizarCategoriasExibicao = (lista = []) =>
     (Array.isArray(lista) ? lista : []).map(categoria => ({
@@ -134,6 +149,46 @@ const App = () => {
         ? (lojas.find(l => String(l.id) === String(adminRestauranteId)) || lojaMatriz)
         : (isFranquia2 ? lojaFranquia : lojaMatriz);
     const idAdminLogado = adminLojaAtual ? adminLojaAtual.id : null;
+
+    // Mantém Sobremesa e Adicionais visíveis no cadastro, mesmo antes de existirem no banco.
+    // Ao salvar o primeiro produto nessas opções, a categoria real é criada automaticamente.
+    const categoriasAdmin = (() => {
+        const lista = [...categorias];
+
+        CATEGORIAS_EXTRAS_ADMIN.forEach(padrao => {
+            const jaExiste = lista.some(
+                categoria => chaveCategoria(normalizarNomeCategoria(categoria?.nome || '')) === chaveCategoria(padrao.nome)
+            );
+
+            if (!jaExiste) {
+                lista.push({
+                    id: padrao.idVirtual,
+                    nome: padrao.nome,
+                    ordem: Number.MAX_SAFE_INTEGER,
+                    virtual: true
+                });
+            }
+        });
+
+        return lista;
+    })();
+
+    const categoriaAdicionais = categorias.find(
+        categoria => chaveCategoria(normalizarNomeCategoria(categoria?.nome || '')) === 'adicionais'
+    );
+
+    const produtoEhAdicional = (produto) =>
+        Boolean(
+            categoriaAdicionais &&
+            String(produto?.categoria_id) === String(categoriaAdicionais.id)
+        );
+
+    const adicionaisDisponiveis = produtos.filter(
+        produto =>
+            produto.ativo &&
+            String(produto.restaurante_id) === String(restaurante.id) &&
+            produtoEhAdicional(produto)
+    );
 
     const normalizarObservacao = (valor = '') => valor.trim().replace(/\s+/g, ' ').toLowerCase();
     const criarCartKey = (produtoId, obs = '') => `${produtoId}__${normalizarObservacao(obs)}__${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -828,6 +883,44 @@ const App = () => {
 
     const atualizarObs = (cartKey, obs) => {
         setCarrinho(prev => prev.map(item => item.cartKey === cartKey ? { ...item, observacao: obs } : item));
+    };
+
+    const quantidadeAdicionalNoCarrinho = (adicionalId) =>
+        carrinho
+            .filter(item => item.tipo_item === 'adicional' && String(item.id) === String(adicionalId))
+            .reduce((total, item) => total + Number(item.quantidade || 0), 0);
+
+    const alterarAdicionalCheckout = (adicional, delta) => {
+        setCarrinho(prev => {
+            const index = prev.findIndex(
+                item => item.tipo_item === 'adicional' && String(item.id) === String(adicional.id)
+            );
+
+            if (index === -1) {
+                if (delta <= 0) return prev;
+
+                return [
+                    ...prev,
+                    {
+                        ...adicional,
+                        tipo_item: 'adicional',
+                        cartKey: criarCartKey(adicional.id, 'adicional'),
+                        quantidade: 1,
+                        observacao: ''
+                    }
+                ];
+            }
+
+            const novaQuantidade = Number(prev[index].quantidade || 0) + delta;
+
+            if (novaQuantidade <= 0) {
+                return prev.filter((_, i) => i !== index);
+            }
+
+            return prev.map((item, i) =>
+                i === index ? { ...item, quantidade: novaQuantidade } : item
+            );
+        });
     };
 
     const salvarPerfil = async () => {
@@ -1659,6 +1752,12 @@ const App = () => {
             return;
         }
 
+        const temItemPrincipal = carrinho.some(item => item.tipo_item !== 'adicional');
+        if (!temItemPrincipal) {
+            alert('Escolha pelo menos um lanche ou produto principal para incluir os adicionais.');
+            return;
+        }
+
         if (checkoutForm.tipo === 'entrega') {
             if (!clienteDados.endereco) {
                 alert("Cadastre seu endereço no seu Perfil para solicitar entrega.");
@@ -1824,10 +1923,12 @@ const App = () => {
             const totalItem = qtd * preco;
             const obs = String(item.observacao || '').trim();
 
+            const prefixoItem = item.tipo_item === 'adicional' ? 'ADICIONAL - ' : '';
+
             return `
                 <div class="item">
                     <div class="item-linha">
-                        <span class="item-nome">${qtd}x ${escapeHtml(item.nome || 'Item')}</span>
+                        <span class="item-nome">${qtd}x ${prefixoItem}${escapeHtml(item.nome || 'Item')}</span>
                         <span class="item-valor">R$ ${formatarMoeda(totalItem)}</span>
                     </div>
                     <div class="item-unitario">R$ ${formatarMoeda(preco)} un.</div>
@@ -2124,6 +2225,64 @@ const App = () => {
         }
     };
     
+    const resolverCategoriaIdParaSalvar = async (categoriaId) => {
+        const categoriaVirtual = CATEGORIAS_EXTRAS_ADMIN.find(
+            categoria => categoria.idVirtual === categoriaId
+        );
+
+        if (!categoriaVirtual) return categoriaId;
+
+        const existente = categorias.find(
+            categoria => chaveCategoria(normalizarNomeCategoria(categoria?.nome || '')) === chaveCategoria(categoriaVirtual.nome)
+        );
+
+        if (existente) return existente.id;
+
+        const maiorOrdem = categorias.reduce(
+            (maior, categoria) => Math.max(maior, Number(categoria?.ordem) || 0),
+            0
+        );
+
+        const { data, error } = await supabase
+            .from('categorias')
+            .insert([{
+                nome: categoriaVirtual.nome,
+                ordem: maiorOrdem + 1
+            }])
+            .select('id,nome,ordem');
+
+        if (error) {
+            const atualizadas = await carregarCategorias();
+            const encontrada = atualizadas.find(
+                categoria => chaveCategoria(normalizarNomeCategoria(categoria?.nome || '')) === chaveCategoria(categoriaVirtual.nome)
+            );
+
+            if (encontrada) return encontrada.id;
+            throw error;
+        }
+
+        const criada = data?.[0];
+        if (!criada?.id) {
+            throw new Error(`Não foi possível criar a categoria ${categoriaVirtual.nome}.`);
+        }
+
+        const categoriaNormalizada = {
+            ...criada,
+            nome: normalizarNomeCategoria(criada.nome)
+        };
+
+        const novasCategorias = [...categorias, categoriaNormalizada]
+            .filter((categoria, index, lista) =>
+                index === lista.findIndex(item => String(item.id) === String(categoria.id))
+            )
+            .sort((a, b) => (Number(a.ordem) || 0) - (Number(b.ordem) || 0));
+
+        setCategorias(novasCategorias);
+        salvarCacheSeguro('dogs_categorias_cache', novasCategorias);
+
+        return criada.id;
+    };
+
     const handleSaveProduto = async () => {
         if (!supabase) {
             alert("Aguarde a conexão com o banco de dados. (Se persistir, recarregue a página)");
@@ -2139,7 +2298,8 @@ const App = () => {
         if (!produtoEditando.preco) { alert("Preço do produto é obrigatório."); return; }
 
         try {
-            const catIdFinal = produtoEditando.categoria_id || (categorias.length > 0 ? categorias[0].id : null);
+            const categoriaSelecionada = produtoEditando.categoria_id || (categoriasAdmin.length > 0 ? categoriasAdmin[0].id : null);
+            const catIdFinal = await resolverCategoriaIdParaSalvar(categoriaSelecionada);
             
             const payload = {
                 nome: produtoEditando.nome,
@@ -2257,7 +2417,7 @@ const App = () => {
                         {adminView === 'cardapio' && (
                             <div className="flex items-center space-x-4">
                                 <button onClick={() => {
-                                    setProdutoEditando({nome: '', preco: '', categoria_id: categorias[0]?.id || '', descricao: '', ativo: true, is_destaque: false, imagem_url: ''}); 
+                                    setProdutoEditando({nome: '', preco: '', categoria_id: categoriasAdmin[0]?.id || '', descricao: '', ativo: true, is_destaque: false, imagem_url: ''}); 
                                     setModalProdutoAberto(true);
                                 }} className="bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] px-3 md:px-4 py-1.5 md:py-2 rounded-lg font-bold text-[11px] md:text-sm shadow-md transition-colors flex items-center">
                                     <i className="fas fa-plus sm:mr-2"></i> <span className="hidden sm:inline">Novo Lanche</span>
@@ -2300,7 +2460,12 @@ const App = () => {
                                                             <span className="text-[#d79e51] font-bold text-sm">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
                                                         </div>
                                                         <div className="mb-2 text-xs text-gray-300">
-                                                            {info.lanches?.map((l, i) => <div key={i}>• {l.quantidade}x {l.nome} {l.observacao && <span className="text-red-400">({l.observacao})</span>}</div>)}
+                                                            {info.lanches?.map((l, i) => (
+                                                                <div key={i}>
+                                                                    • {l.quantidade}x {l.tipo_item === 'adicional' ? 'Adicional - ' : ''}{l.nome}
+                                                                    {l.observacao && <span className="text-red-400"> ({l.observacao})</span>}
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                         <div className="text-[10px] text-gray-400 bg-[#1f1e22] p-1.5 rounded mt-2">
                                                             <i className="fas fa-map-marker-alt"></i> {info.endereco || 'Retirada'} <br/>
@@ -2805,7 +2970,7 @@ const App = () => {
                                     <div className="flex-1">
                                         <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Categoria *</label>
                                         <select value={produtoEditando?.categoria_id || ''} onChange={(e) => setProdutoEditando({...produtoEditando, categoria_id: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm">
-                                            {categorias.map(c => (
+                                            {categoriasAdmin.map(c => (
                                                 <option key={c.id} value={c.id}>{c.nome}</option>
                                             ))}
                                         </select>
@@ -3051,7 +3216,7 @@ const App = () => {
                                             </div>
                                         </div>
                                     ))}
-                                    {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id).map(p => (
+                                    {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id && !produtoEhAdicional(p)).map(p => (
                                         <div key={p.id} className="w-[85vw] max-w-[300px] md:w-full md:max-w-none bg-[#363539] rounded-3xl overflow-hidden shadow-lg flex-none md:flex-auto border border-gray-700/50 snap-center hover:border-[#d79e51]/50 hover:shadow-[0_15px_35px_rgba(215,158,81,0.15)] hover:-translate-y-2 transition-all duration-300 group cursor-pointer" onClick={() => abrirDetalheItem(p)}>
                                             <div className="h-48 md:h-64 relative overflow-hidden">
                                                 <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=Foto'} alt={p.nome} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
@@ -3070,7 +3235,7 @@ const App = () => {
                                             </div>
                                         </div>
                                     ))}
-                                    {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id).length === 0 && !dbLoading && (
+                                    {produtos.filter(p => p.is_destaque && p.restaurante_id === restaurante.id && !produtoEhAdicional(p)).length === 0 && !dbLoading && (
                                         <p className="text-gray-500 text-sm md:text-base italic">Nenhum destaque no momento.</p>
                                     )}
                                 </div>
@@ -3086,16 +3251,20 @@ const App = () => {
                             </div>
                             
                             <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-3 md:gap-4 pb-4 mb-8 md:mb-12 hide-scrollbar snap-x">
-                                {categorias.map(c => (
-                                    <button key={c.id} className="flex-none snap-start bg-[#1f1e22] border border-gray-700 px-5 md:px-8 py-2.5 md:py-3.5 rounded-full whitespace-nowrap text-sm md:text-base font-bold text-gray-300 hover:text-[#1a191c] hover:bg-[#d79e51] hover:border-[#d79e51] transition-all duration-300 shadow-sm hover:shadow-lg">
-                                        {c.nome}
-                                    </button>
-                                ))}
+                                {categorias
+                                    .filter(c => chaveCategoria(normalizarNomeCategoria(c.nome)) !== 'adicionais')
+                                    .map(c => (
+                                        <button key={c.id} className="flex-none snap-start bg-[#1f1e22] border border-gray-700 px-5 md:px-8 py-2.5 md:py-3.5 rounded-full whitespace-nowrap text-sm md:text-base font-bold text-gray-300 hover:text-[#1a191c] hover:bg-[#d79e51] hover:border-[#d79e51] transition-all duration-300 shadow-sm hover:shadow-lg">
+                                            {c.nome}
+                                        </button>
+                                    ))}
                             </div>
 
                             <div className="space-y-10 md:space-y-16">
                                 {dbLoading && <p className="text-center text-gray-500 py-10 text-lg md:text-xl"><i className="fas fa-spinner fa-spin mr-3"></i>Carregando delícias...</p>}
-                                {!dbLoading && categorias.map(cat => {
+                                {!dbLoading && categorias
+                                    .filter(cat => chaveCategoria(normalizarNomeCategoria(cat.nome)) !== 'adicionais')
+                                    .map(cat => {
                                     const prods = produtos.filter(p => p.categoria_id === cat.id && p.ativo && p.restaurante_id === restaurante.id);
                                     if(prods.length === 0) return null;
                                     return (
@@ -3154,7 +3323,14 @@ const App = () => {
                                         {carrinho.map((item, index) => (
                                             <div key={item.cartKey || `${item.id}-${index}`} className="bg-[#363539] rounded-2xl md:rounded-3xl p-4 md:p-6 border border-gray-700/50 shadow-md hover:border-gray-500 transition-colors">
                                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-3 mb-3 md:mb-4">
-                                                    <h4 className="font-bold text-white text-base md:text-xl pr-4">{item.nome}</h4>
+                                                    <div className="pr-4">
+                                                        <h4 className="font-bold text-white text-base md:text-xl">{item.nome}</h4>
+                                                        {item.tipo_item === 'adicional' && (
+                                                            <span className="inline-block mt-1 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#d79e51] border border-[#d79e51]/40 bg-[#d79e51]/10 px-2 py-1 rounded-full">
+                                                                Adicional
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <span className="text-[#d79e51] font-black text-lg md:text-2xl whitespace-nowrap">R$ {(item.preco * item.quantidade).toFixed(2).replace('.', ',')}</span>
                                                 </div>
                                                 <input type="text" placeholder="Alguma observação? (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.cartKey, e.target.value)} className="w-full bg-[#1a191c] text-sm md:text-base text-gray-300 border border-gray-700/80 rounded-xl mb-4 md:mb-5 px-4 md:px-5 py-2.5 md:py-3.5 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all" />
@@ -3210,8 +3386,56 @@ const App = () => {
                                                 )}
                                             </div>
 
+                                            {adicionaisDisponiveis.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-white font-black uppercase tracking-wider mb-3 md:mb-4 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center">
+                                                        <i className="fas fa-plus-circle text-[#d79e51] mr-3"></i> 2. Adicionais
+                                                    </h4>
+                                                    <p className="text-gray-400 text-xs md:text-sm mb-4">
+                                                        Quer incrementar seu lanche? Escolha os adicionais abaixo.
+                                                    </p>
+
+                                                    <div className="space-y-3">
+                                                        {adicionaisDisponiveis.map(adicional => {
+                                                            const quantidade = quantidadeAdicionalNoCarrinho(adicional.id);
+
+                                                            return (
+                                                                <div key={adicional.id} className={`flex items-center justify-between gap-3 p-3 md:p-4 rounded-2xl border transition-all ${quantidade > 0 ? 'border-[#d79e51]/60 bg-[#d79e51]/10' : 'border-gray-800 bg-[#1a191c]'}`}>
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-white font-bold text-sm md:text-base truncate">{adicional.nome}</p>
+                                                                        {adicional.descricao && (
+                                                                            <p className="text-gray-500 text-[10px] md:text-xs mt-1 line-clamp-2">{adicional.descricao}</p>
+                                                                        )}
+                                                                        <p className="text-[#d79e51] font-black text-sm md:text-base mt-1">
+                                                                            + R$ {Number(adicional.preco).toFixed(2).replace('.', ',')}
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <div className="flex items-center space-x-1 bg-[#242326] rounded-xl p-1 border border-gray-700 flex-shrink-0">
+                                                                        <button
+                                                                            onClick={() => alterarAdicionalCheckout(adicional, -1)}
+                                                                            disabled={quantidade === 0}
+                                                                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg transition-colors ${quantidade === 0 ? 'text-gray-600 cursor-not-allowed' : 'text-[#d79e51] hover:bg-[#363539]'}`}
+                                                                        >
+                                                                            -
+                                                                        </button>
+                                                                        <span className="text-white font-black w-7 text-center">{quantidade}</span>
+                                                                        <button
+                                                                            onClick={() => alterarAdicionalCheckout(adicional, 1)}
+                                                                            className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg text-[#d79e51] hover:bg-[#363539] transition-colors"
+                                                                        >
+                                                                            +
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div>
-                                                <h4 className="text-white font-black uppercase tracking-wider mb-4 md:mb-5 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center"><i className="fas fa-wallet text-[#d79e51] mr-3"></i> 2. Pagamento</h4>
+                                                <h4 className="text-white font-black uppercase tracking-wider mb-4 md:mb-5 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center"><i className="fas fa-wallet text-[#d79e51] mr-3"></i> {adicionaisDisponiveis.length > 0 ? '3.' : '2.'} Pagamento</h4>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-4">
                                                     <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Cartão'})} className={`py-3.5 md:py-4 rounded-xl text-sm md:text-lg font-bold transition-all border-2 ${checkoutForm.pagamento === 'Cartão' ? 'border-[#d79e51] bg-[#d79e51]/10 text-[#d79e51] shadow-inner' : 'border-gray-700 bg-[#1a191c] text-gray-400 hover:border-gray-500 hover:bg-[#242326]'}`}><i className="fas fa-credit-card mr-2"></i> Cartão</button>
                                                     <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Dinheiro'})} className={`py-3.5 md:py-4 rounded-xl text-sm md:text-lg font-bold transition-all border-2 ${checkoutForm.pagamento === 'Dinheiro' ? 'border-[#d79e51] bg-[#d79e51]/10 text-[#d79e51] shadow-inner' : 'border-gray-700 bg-[#1a191c] text-gray-400 hover:border-gray-500 hover:bg-[#242326]'}`}><i className="fas fa-money-bill-wave mr-2"></i> Dinheiro</button>
