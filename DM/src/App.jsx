@@ -290,14 +290,26 @@ const App = () => {
         return data.user || null;
     };
 
-    const abrirWhatsAppLoja = (numero, pedidoId = '') => {
+    const numeroPedidoVisivel = (pedido) => {
+        if (pedido?.numero_pedido !== null && pedido?.numero_pedido !== undefined && pedido?.numero_pedido !== '') {
+            return String(pedido.numero_pedido);
+        }
+
+        // Fallback apenas para pedidos antigos caso a migração ainda não tenha sido executada.
+        return String(pedido?.id || '').substring(0, 6).toUpperCase();
+    };
+
+    const abrirWhatsAppLoja = (numero, pedido = null) => {
         const digits = String(numero || '').replace(/\D/g, '');
         if (!digits) {
             alert('O WhatsApp da loja ainda não foi configurado.');
             return;
         }
         const numeroBrasil = digits.startsWith('55') ? digits : `55${digits}`;
-        const mensagem = pedidoId ? `Olá! Gostaria de falar sobre o pedido #${String(pedidoId).substring(0, 6).toUpperCase()}.` : 'Olá! Gostaria de falar com a loja.';
+        const numeroPedido = pedido ? numeroPedidoVisivel(pedido) : '';
+        const mensagem = numeroPedido
+            ? `Olá! Gostaria de falar sobre o pedido #${numeroPedido}.`
+            : 'Olá! Gostaria de falar com a loja.';
         window.open(`https://wa.me/${numeroBrasil}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener,noreferrer');
     };
 
@@ -690,7 +702,7 @@ const App = () => {
             id: `ped-${p.id}`,
             data: p.created_at,
             loja: info.filial_nome || 'Filial Desconhecida',
-            descricao: `Pedido #${p.id.substring(0,6).toUpperCase()} (${nomesLanches})`,
+            descricao: `Pedido #${numeroPedidoVisivel(p)} (${nomesLanches})`,
             tipo: 'entrada',
             valor: Number(p.total)
         };
@@ -2252,13 +2264,20 @@ const App = () => {
                 }
             };
 
-            const { error } = await supabase.from('pedidos').insert([novoPedido]);
+            const { data: pedidoCriado, error } = await supabase
+                .from('pedidos')
+                .insert([novoPedido])
+                .select('id,numero_pedido')
+                .single();
+
             if (error) throw error;
 
             setCarrinho([]);
             await carregarMeusPedidos();
             setView('pedidos');
-            alert("Pedido enviado com sucesso!");
+
+            const numeroCriado = numeroPedidoVisivel(pedidoCriado);
+            alert(`Pedido #${numeroCriado} enviado com sucesso!`);
         } catch (err) {
             console.error("Erro ao finalizar pedido:", err);
             alert(`O pedido NÃO foi enviado. ${err.message || 'Tente novamente.'}`);
@@ -2396,8 +2415,7 @@ const App = () => {
         const ehEntrega = tipoRecebimento === 'entrega' || (info.endereco && info.endereco !== 'Retirada');
         const tituloRecebimento = ehEntrega ? 'ENTREGA' : 'RETIRADA';
 
-        const idPedido = String(pedido.id || '').toUpperCase();
-        const numeroCurto = idPedido.substring(0, 8);
+        const numeroCurto = numeroPedidoVisivel(pedido);
 
         // A TM-T20X usa bobina de 80 mm (79,5 mm nominal).
         // O conteúdo é limitado a ~72 mm para respeitar a área útil do driver.
@@ -2905,7 +2923,7 @@ const App = () => {
                                                 return (
                                                     <div key={p.id} className="bg-[#363539] p-3 rounded-lg border border-gray-700 shadow-sm relative z-10">
                                                         <div className="flex justify-between border-b border-gray-700 pb-2 mb-2">
-                                                            <span className="text-white font-bold text-sm">#{p.id.substring(0,6).toUpperCase()} - {p.cliente_nome}</span>
+                                                            <span className="text-white font-bold text-sm">#{numeroPedidoVisivel(p)} - {p.cliente_nome}</span>
                                                             <span className="text-[#d79e51] font-bold text-sm">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
                                                         </div>
                                                         <div className="mb-2 text-xs text-gray-300">
@@ -4066,7 +4084,7 @@ const App = () => {
                                             <div key={p.id} className="bg-[#363539] rounded-3xl p-5 md:p-7 border border-gray-700/50 shadow-lg hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:border-gray-500 transition-all duration-300 flex flex-col">
                                                 <div className="flex justify-between items-start mb-4 md:mb-5 border-b border-gray-700/50 pb-4">
                                                     <div>
-                                                        <h4 className="font-black text-white text-lg md:text-xl">Pedido #{p.id.substring(0,6).toUpperCase()}</h4>
+                                                        <h4 className="font-black text-white text-lg md:text-xl">Pedido #{numeroPedidoVisivel(p)}</h4>
                                                         <span className="text-xs md:text-sm text-gray-400 font-medium flex items-center mt-1.5"><i className="far fa-clock mr-2 text-[#d79e51]"></i> {new Date(p.created_at).toLocaleString('pt-BR')}</span>
                                                     </div>
                                                     <span className="text-[#d79e51] font-black text-xl md:text-2xl">R$ {Number(p.total).toFixed(2).replace('.',',')}</span>
@@ -4113,7 +4131,7 @@ const App = () => {
                                                     </div>
                                                 )}
                                                 {(info.whatsapp_loja || restaurante.whatsapp) && (
-                                                    <button onClick={() => abrirWhatsAppLoja(info.whatsapp_loja || restaurante.whatsapp, p.id)} className="mt-3 w-full bg-emerald-600/15 border border-emerald-600/40 text-emerald-400 hover:bg-emerald-600 hover:text-white py-3 rounded-xl font-bold text-sm transition-colors"><i className="fab fa-whatsapp mr-2"></i>Falar com a loja</button>
+                                                    <button onClick={() => abrirWhatsAppLoja(info.whatsapp_loja || restaurante.whatsapp, p)} className="mt-3 w-full bg-emerald-600/15 border border-emerald-600/40 text-emerald-400 hover:bg-emerald-600 hover:text-white py-3 rounded-xl font-bold text-sm transition-colors"><i className="fab fa-whatsapp mr-2"></i>Falar com a loja</button>
                                                 )}
                                             </div>
                                         )
