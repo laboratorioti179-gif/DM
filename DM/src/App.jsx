@@ -189,6 +189,28 @@ const App = () => {
             String(produto?.categoria_id) === String(categoriaAdicionais.id)
         );
 
+    const descontoProduto = (produto) => {
+        const valor = Number(produto?.desconto_percentual || 0);
+        if (!Number.isFinite(valor)) return 0;
+        return Math.max(0, Math.min(100, valor));
+    };
+
+    const precoFinalProduto = (produto) => {
+        const precoOriginal = Number(produto?.preco || 0);
+        const desconto = descontoProduto(produto);
+        const precoFinal = precoOriginal * (1 - (desconto / 100));
+        return Math.round((precoFinal + Number.EPSILON) * 100) / 100;
+    };
+
+    const produtoTemDesconto = (produto) => descontoProduto(produto) > 0;
+
+    const formatarPercentualDesconto = (produto) => {
+        const valor = descontoProduto(produto);
+        return Number.isInteger(valor)
+            ? String(valor)
+            : valor.toFixed(2).replace('.', ',').replace(/,00$/, '');
+    };
+
     const adicionaisDisponiveis = produtos.filter(
         produto =>
             produto.ativo &&
@@ -828,12 +850,19 @@ const App = () => {
 
     const adicionarAoCarrinho = (produto) => {
         const obsNormalizada = '';
+        const produtoComPrecoFinal = {
+            ...produto,
+            preco_original: Number(produto.preco || 0),
+            preco: precoFinalProduto(produto),
+            desconto_percentual: descontoProduto(produto)
+        };
+
         setCarrinho(prev => {
             const index = prev.findIndex(item => item.id === produto.id && normalizarObservacao(item.observacao) === obsNormalizada);
             if (index > -1) {
                 return prev.map((item, i) => i === index ? { ...item, quantidade: item.quantidade + 1 } : item);
             }
-            return [...prev, { ...produto, cartKey: criarCartKey(produto.id, ''), quantidade: 1, observacao: '' }];
+            return [...prev, { ...produtoComPrecoFinal, cartKey: criarCartKey(produto.id, ''), quantidade: 1, observacao: '' }];
         });
     };
 
@@ -887,6 +916,9 @@ const App = () => {
 
         const itemPrincipal = {
             ...itemSelecionado,
+            preco_original: Number(itemSelecionado.preco || 0),
+            preco: precoFinalProduto(itemSelecionado),
+            desconto_percentual: descontoProduto(itemSelecionado),
             cartKey: cartKeyPrincipal,
             quantidade: quantidadeSelecionada,
             observacao: obsFinal
@@ -900,6 +932,9 @@ const App = () => {
             .filter(item => item.quantidade > 0)
             .map(({ adicional, quantidade }) => ({
                 ...adicional,
+                preco_original: Number(adicional.preco || 0),
+                preco: precoFinalProduto(adicional),
+                desconto_percentual: descontoProduto(adicional),
                 tipo_item: 'adicional',
                 cartKey: criarCartKey(adicional.id, `adicional-${cartKeyPrincipal}`),
                 quantidade,
@@ -1340,7 +1375,7 @@ const App = () => {
         try {
             const { data, error } = await supabase
                 .from('produtos')
-                .select('id,nome,preco,descricao,categoria_id,ativo,is_destaque,imagem_url,restaurante_id')
+                .select('id,nome,preco,desconto_percentual,descricao,categoria_id,ativo,is_destaque,imagem_url,restaurante_id')
                 .eq('restaurante_id', restauranteId);
 
             if (error) throw error;
@@ -2618,13 +2653,20 @@ const App = () => {
         if (!produtoEditando.nome) { alert("Nome do produto é obrigatório."); return; }
         if (!produtoEditando.preco) { alert("Preço do produto é obrigatório."); return; }
 
+        const descontoInformado = Number(produtoEditando.desconto_percentual || 0);
+        if (!Number.isFinite(descontoInformado) || descontoInformado < 0 || descontoInformado > 100) {
+            alert("O desconto deve estar entre 0% e 100%.");
+            return;
+        }
+
         try {
             const categoriaSelecionada = produtoEditando.categoria_id || (categoriasAdmin.length > 0 ? categoriasAdmin[0].id : null);
             const catIdFinal = await resolverCategoriaIdParaSalvar(categoriaSelecionada);
             
             const payload = {
                 nome: produtoEditando.nome,
-                preco: produtoEditando.preco,
+                preco: Number(produtoEditando.preco),
+                desconto_percentual: descontoInformado,
                 descricao: produtoEditando.descricao || '',
                 categoria_id: catIdFinal,
                 ativo: produtoEditando.ativo,
@@ -2738,7 +2780,7 @@ const App = () => {
                         {adminView === 'cardapio' && (
                             <div className="flex items-center space-x-4">
                                 <button onClick={() => {
-                                    setProdutoEditando({nome: '', preco: '', categoria_id: categoriasAdmin[0]?.id || '', descricao: '', ativo: true, is_destaque: false, imagem_url: ''}); 
+                                    setProdutoEditando({nome: '', preco: '', desconto_percentual: 0, categoria_id: categoriasAdmin[0]?.id || '', descricao: '', ativo: true, is_destaque: false, imagem_url: ''}); 
                                     setModalProdutoAberto(true);
                                 }} className="bg-[#d79e51] hover:bg-[#e8b776] text-[#1a191c] px-3 md:px-4 py-1.5 md:py-2 rounded-lg font-bold text-[11px] md:text-sm shadow-md transition-colors flex items-center">
                                     <i className="fas fa-plus sm:mr-2"></i> <span className="hidden sm:inline">Novo Lanche</span>
@@ -2849,9 +2891,25 @@ const App = () => {
                                     />
                                     <div className="p-4">
                                         <h4 className="text-white font-medium text-sm mb-1">{p.nome}</h4>
-                                        <p className="text-[#d79e51] font-bold mb-3">
-                                            R$ {Number(p.preco).toFixed(2).replace('.', ',')}
-                                        </p>
+                                        {produtoTemDesconto(p) ? (
+                                            <div className="mb-3">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-gray-500 text-xs line-through">
+                                                        R$ {Number(p.preco).toFixed(2).replace('.', ',')}
+                                                    </span>
+                                                    <span className="bg-red-500/15 border border-red-500/40 text-red-400 text-[9px] font-black px-2 py-0.5 rounded-full">
+                                                        -{formatarPercentualDesconto(p)}%
+                                                    </span>
+                                                </div>
+                                                <p className="text-[#d79e51] font-black">
+                                                    R$ {precoFinalProduto(p).toFixed(2).replace('.', ',')}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-[#d79e51] font-bold mb-3">
+                                                R$ {Number(p.preco).toFixed(2).replace('.', ',')}
+                                            </p>
+                                        )}
                                         <div className="flex justify-between items-center">
                                             <span className={`text-xs px-2 py-1 rounded border ${p.ativo ? 'border-green-800 text-green-500' : 'border-red-800 text-red-500'}`}>
                                                 {p.ativo ? 'Ativo' : 'Pausado'}
@@ -2865,7 +2923,7 @@ const App = () => {
                                                     <i className="fas fa-trash"></i>
                                                 </button>
                                                 <button
-                                                    onClick={() => { setProdutoEditando(p); setModalProdutoAberto(true); }}
+                                                    onClick={() => { setProdutoEditando({...p, desconto_percentual: Number(p.desconto_percentual || 0)}); setModalProdutoAberto(true); }}
                                                     className="text-xs px-3 py-1.5 bg-[#d79e51] text-[#1a191c] rounded hover:bg-[#e8b776] transition-colors"
                                                     title="Editar produto"
                                                 >
@@ -3283,19 +3341,73 @@ const App = () => {
                                     <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Nome do Item *</label>
                                     <input type="text" value={produtoEditando?.nome || ''} onChange={(e) => setProdutoEditando({...produtoEditando, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
                                 </div>
-                                <div className="flex flex-col sm:flex-row gap-3">
-                                    <div className="flex-1">
-                                        <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Preço (R$) *</label>
-                                        <input type="number" step="0.01" value={produtoEditando?.preco || ''} onChange={(e) => setProdutoEditando({...produtoEditando, preco: parseFloat(e.target.value) || 0})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm" />
+                                <div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Preço original (R$) *</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={produtoEditando?.preco ?? ''}
+                                                onChange={(e) => setProdutoEditando({...produtoEditando, preco: e.target.value === '' ? '' : Number(e.target.value)})}
+                                                className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Desconto (%)</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                    value={produtoEditando?.desconto_percentual ?? 0}
+                                                    onChange={(e) => {
+                                                        const valor = e.target.value === '' ? 0 : Math.max(0, Math.min(100, Number(e.target.value)));
+                                                        setProdutoEditando({...produtoEditando, desconto_percentual: valor});
+                                                    }}
+                                                    className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg pl-3 pr-9 py-2.5 focus:border-[#d79e51] outline-none text-sm"
+                                                    placeholder="0"
+                                                />
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">%</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex-1">
-                                        <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Categoria *</label>
-                                        <select value={produtoEditando?.categoria_id || ''} onChange={(e) => setProdutoEditando({...produtoEditando, categoria_id: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm">
-                                            {categoriasAdmin.map(c => (
-                                                <option key={c.id} value={c.id}>{c.nome}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+
+                                    {Number(produtoEditando?.preco || 0) > 0 && (
+                                        <div className={`mt-3 rounded-xl border p-3 ${Number(produtoEditando?.desconto_percentual || 0) > 0 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-[#1a191c] border-gray-800'}`}>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <span className="block text-[9px] uppercase tracking-widest font-black text-gray-500">Preço para o cliente</span>
+                                                    {Number(produtoEditando?.desconto_percentual || 0) > 0 && (
+                                                        <span className="block text-[10px] text-gray-500 line-through mt-1">
+                                                            R$ {Number(produtoEditando.preco || 0).toFixed(2).replace('.', ',')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-right">
+                                                    {Number(produtoEditando?.desconto_percentual || 0) > 0 && (
+                                                        <span className="inline-block mb-1 bg-red-500/15 border border-red-500/40 text-red-400 text-[9px] font-black px-2 py-0.5 rounded-full">
+                                                            -{formatarPercentualDesconto(produtoEditando)}%
+                                                        </span>
+                                                    )}
+                                                    <p className="text-[#d79e51] font-black text-lg">
+                                                        R$ {precoFinalProduto(produtoEditando).toFixed(2).replace('.', ',')}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Categoria *</label>
+                                    <select value={produtoEditando?.categoria_id || ''} onChange={(e) => setProdutoEditando({...produtoEditando, categoria_id: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-lg px-3 py-2.5 focus:border-[#d79e51] outline-none text-sm">
+                                        {categoriasAdmin.map(c => (
+                                            <option key={c.id} value={c.id}>{c.nome}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Descrição</label>
@@ -3545,12 +3657,26 @@ const App = () => {
                                                 <div className="absolute top-4 left-4 bg-[#d79e51] text-[#1a191c] text-[10px] md:text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
                                                     Mais Vendido
                                                 </div>
+                                                {produtoTemDesconto(p) && (
+                                                    <div className="absolute top-4 right-4 bg-red-500 text-white text-[10px] md:text-xs font-black px-3 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
+                                                        -{formatarPercentualDesconto(p)}% OFF
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="p-5 md:p-7 relative bg-[#2c2b2e]">
                                                 <h4 className="font-bold text-lg md:text-2xl text-white uppercase truncate pr-14">{p.nome}</h4>
                                                 <p className="text-gray-400 text-xs md:text-base mt-2 line-clamp-2 md:line-clamp-3 h-10 md:h-14">{p.descricao}</p>
                                                 <div className="mt-4 md:mt-6 flex items-end justify-between">
-                                                    <p className="text-[#d79e51] font-black text-2xl md:text-3xl">R$ {p.preco.toFixed(2).replace('.',',')}</p>
+                                                    <div>
+                                                        {produtoTemDesconto(p) && (
+                                                            <p className="text-gray-500 text-xs md:text-sm line-through mb-0.5">
+                                                                R$ {Number(p.preco).toFixed(2).replace('.', ',')}
+                                                            </p>
+                                                        )}
+                                                        <p className="text-[#d79e51] font-black text-2xl md:text-3xl">
+                                                            R$ {precoFinalProduto(p).toFixed(2).replace('.', ',')}
+                                                        </p>
+                                                    </div>
                                                     <button onClick={(e) => { e.stopPropagation(); abrirDetalheItem(p); }} className="absolute -top-7 right-6 w-14 h-14 bg-[#d79e51] rounded-full flex items-center justify-center text-[#1a191c] text-2xl shadow-[0_8px_20px_rgba(215,158,81,0.5)] group-hover:scale-110 active:scale-95 transition-all duration-300"><i className="fas fa-plus"></i></button>
                                                 </div>
                                             </div>
@@ -3617,14 +3743,28 @@ const App = () => {
                                                         <div className="overflow-hidden rounded-2xl w-full h-40 sm:w-28 sm:h-28 md:w-40 md:h-40 flex-shrink-0 relative">
                                                             <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
                                                             <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                                                            {produtoTemDesconto(p) && (
+                                                                <div className="absolute top-2 right-2 bg-red-500 text-white text-[9px] md:text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-lg">
+                                                                    -{formatarPercentualDesconto(p)}% OFF
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="mt-3 sm:mt-0 sm:ml-4 md:ml-6 flex flex-col justify-between flex-grow min-w-0 py-1 md:py-2">
                                                             <div>
                                                                 <h4 className="text-white text-lg md:text-2xl font-bold leading-tight truncate group-hover:text-[#d79e51] transition-colors">{p.nome}</h4>
                                                                 <p className="text-gray-400 text-xs md:text-sm mt-1.5 md:mt-2.5 line-clamp-2 md:line-clamp-3 leading-relaxed">{p.descricao}</p>
                                                             </div>
-                                                            <div className="flex justify-between items-center mt-3 md:mt-4">
-                                                                <span className="text-[#d79e51] font-black text-lg md:text-2xl">R$ {p.preco.toFixed(2).replace('.',',')}</span>
+                                                            <div className="flex justify-between items-end mt-3 md:mt-4 gap-3">
+                                                                <div>
+                                                                    {produtoTemDesconto(p) && (
+                                                                        <span className="block text-gray-500 text-[10px] md:text-xs line-through">
+                                                                            R$ {Number(p.preco).toFixed(2).replace('.', ',')}
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="text-[#d79e51] font-black text-lg md:text-2xl">
+                                                                        R$ {precoFinalProduto(p).toFixed(2).replace('.', ',')}
+                                                                    </span>
+                                                                </div>
                                                                 <button onClick={(e) => { e.stopPropagation(); abrirDetalheItem(p); }} className="w-9 h-9 md:w-12 md:h-12 border-2 border-[#d79e51]/50 rounded-full text-[#d79e51] flex items-center justify-center hover:bg-[#d79e51] hover:text-[#1a191c] transition-all duration-300 active:scale-90 group-hover:shadow-[0_5px_15px_rgba(215,158,81,0.3)]"><i className="fas fa-plus md:text-lg"></i></button>
                                                             </div>
                                                         </div>
@@ -3663,17 +3803,33 @@ const App = () => {
                                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-3 mb-3 md:mb-4">
                                                     <div className="pr-4">
                                                         <h4 className="font-bold text-white text-base md:text-xl">{item.nome}</h4>
-                                                        {item.tipo_item === 'adicional' && (
-                                                            <span className="inline-block mt-1 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#d79e51] border border-[#d79e51]/40 bg-[#d79e51]/10 px-2 py-1 rounded-full">
-                                                                Adicional
-                                                            </span>
-                                                        )}
+                                                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                            {item.tipo_item === 'adicional' && (
+                                                                <span className="inline-block text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#d79e51] border border-[#d79e51]/40 bg-[#d79e51]/10 px-2 py-1 rounded-full">
+                                                                    Adicional
+                                                                </span>
+                                                            )}
+                                                            {Number(item.desconto_percentual || 0) > 0 && (
+                                                                <span className="inline-block text-[9px] md:text-[10px] font-black uppercase tracking-widest text-red-400 border border-red-500/40 bg-red-500/10 px-2 py-1 rounded-full">
+                                                                    -{Number(item.desconto_percentual).toString().replace('.', ',')}% OFF
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <span className="text-[#d79e51] font-black text-lg md:text-2xl whitespace-nowrap">R$ {(item.preco * item.quantidade).toFixed(2).replace('.', ',')}</span>
                                                 </div>
                                                 <input type="text" placeholder="Alguma observação? (Ex: sem cebola)" value={item.observacao} onChange={(e) => atualizarObs(item.cartKey, e.target.value)} className="w-full bg-[#1a191c] text-sm md:text-base text-gray-300 border border-gray-700/80 rounded-xl mb-4 md:mb-5 px-4 md:px-5 py-2.5 md:py-3.5 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all" />
                                                 <div className="flex justify-between items-center">
-                                                    <span className="text-sm md:text-base text-gray-400 font-medium">R$ {item.preco.toFixed(2).replace('.', ',')} / un</span>
+                                                    <div>
+                                                        {Number(item.desconto_percentual || 0) > 0 && Number(item.preco_original || 0) > 0 && (
+                                                            <span className="block text-[10px] md:text-xs text-gray-500 line-through">
+                                                                R$ {Number(item.preco_original).toFixed(2).replace('.', ',')}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-sm md:text-base text-gray-400 font-medium">
+                                                            R$ {Number(item.preco).toFixed(2).replace('.', ',')} / un
+                                                        </span>
+                                                    </div>
                                                     <div className="flex items-center space-x-1 md:space-x-2 bg-[#1a191c] rounded-xl p-1 border border-gray-800 shadow-inner">
                                                         <button onClick={() => alterarQuantidade(item.cartKey, -1)} className="text-[#d79e51] hover:bg-[#363539] rounded-lg w-8 h-8 md:w-10 md:h-10 flex justify-center items-center font-bold text-xl md:text-2xl transition-colors">-</button>
                                                         <span className="text-white font-black w-8 md:w-10 text-center md:text-lg">{item.quantidade}</span>
@@ -4182,11 +4338,25 @@ const App = () => {
                             <div className="w-full h-40 sm:h-48 md:h-64 relative bg-gray-900 flex-shrink-0">
                                 <img src={itemSelecionado.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={itemSelecionado.nome} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-[#242326] to-transparent"></div>
+                                {produtoTemDesconto(itemSelecionado) && (
+                                    <div className="absolute top-4 left-4 bg-red-500 text-white text-xs md:text-sm font-black px-3 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
+                                        -{formatarPercentualDesconto(itemSelecionado)}% OFF
+                                    </div>
+                                )}
                             </div>
 
                             <div className="p-5 md:p-8 overflow-y-auto flex-1 custom-scrollbar">
                                 <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider mb-2">{itemSelecionado.nome}</h2>
-                                <p className="text-[#d79e51] font-black text-2xl mb-4">R$ {Number(itemSelecionado.preco).toFixed(2).replace('.', ',')}</p>
+                                <div className="mb-4">
+                                    {produtoTemDesconto(itemSelecionado) && (
+                                        <p className="text-gray-500 text-sm line-through mb-0.5">
+                                            R$ {Number(itemSelecionado.preco).toFixed(2).replace('.', ',')}
+                                        </p>
+                                    )}
+                                    <p className="text-[#d79e51] font-black text-2xl">
+                                        R$ {precoFinalProduto(itemSelecionado).toFixed(2).replace('.', ',')}
+                                    </p>
+                                </div>
                                 
                                 {itemSelecionado.descricao && (
                                     <p className="text-gray-300 text-sm md:text-base leading-relaxed mb-6 bg-[#1a191c] p-4 rounded-2xl border border-gray-800">
@@ -4241,9 +4411,21 @@ const App = () => {
                                                             {adicional.descricao && (
                                                                 <p className="text-gray-500 text-[10px] md:text-xs mt-1 line-clamp-2">{adicional.descricao}</p>
                                                             )}
-                                                            <p className="text-[#d79e51] font-black text-sm mt-1">
-                                                                + R$ {Number(adicional.preco).toFixed(2).replace('.', ',')}
-                                                            </p>
+                                                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                                {produtoTemDesconto(adicional) && (
+                                                                    <>
+                                                                        <span className="text-gray-600 text-[10px] line-through">
+                                                                            R$ {Number(adicional.preco).toFixed(2).replace('.', ',')}
+                                                                        </span>
+                                                                        <span className="bg-red-500/10 border border-red-500/30 text-red-400 text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                                                                            -{formatarPercentualDesconto(adicional)}%
+                                                                        </span>
+                                                                    </>
+                                                                )}
+                                                                <p className="text-[#d79e51] font-black text-sm">
+                                                                    + R$ {precoFinalProduto(adicional).toFixed(2).replace('.', ',')}
+                                                                </p>
+                                                            </div>
                                                         </div>
 
                                                         <div className="flex items-center space-x-1 bg-[#242326] rounded-xl p-1 border border-gray-700 flex-shrink-0">
