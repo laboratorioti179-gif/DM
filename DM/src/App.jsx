@@ -102,6 +102,7 @@ const App = () => {
     const [itemSelecionado, setItemSelecionado] = useState(null);
     const [observacao, setObservacao] = useState("");
     const [quantidadeSelecionada, setQuantidadeSelecionada] = useState(1);
+    const [adicionaisSelecionadosItem, setAdicionaisSelecionadosItem] = useState({});
     const [enviandoPedido, setEnviandoPedido] = useState(false);
     const [modalRejeicao, setModalRejeicao] = useState({ aberto: false, pedidoId: null, motivo: '' });
     const [alertaNovoPedido, setAlertaNovoPedido] = useState(null);
@@ -840,41 +841,69 @@ const App = () => {
         setItemSelecionado(item);
         setObservacao("");
         setQuantidadeSelecionada(1);
+        setAdicionaisSelecionadosItem({});
     };
 
     const fecharDetalheItem = () => {
         setItemSelecionado(null);
         setObservacao("");
         setQuantidadeSelecionada(1);
+        setAdicionaisSelecionadosItem({});
+    };
+
+    const alterarAdicionalItem = (adicionalId, delta) => {
+        setAdicionaisSelecionadosItem(prev => {
+            const atual = Number(prev[adicionalId] || 0);
+            const novaQuantidade = Math.max(0, atual + delta);
+
+            if (novaQuantidade === 0) {
+                const copia = { ...prev };
+                delete copia[adicionalId];
+                return copia;
+            }
+
+            return {
+                ...prev,
+                [adicionalId]: novaQuantidade
+            };
+        });
     };
 
     const confirmarItemSelecionado = () => {
         if (!itemSelecionado) return;
+
         const obsFinal = observacao.trim();
-        const obsNormalizada = normalizarObservacao(obsFinal);
+        const cartKeyPrincipal = criarCartKey(itemSelecionado.id, obsFinal);
 
-        setCarrinho(prev => {
-            const index = prev.findIndex(item =>
-                item.id === itemSelecionado.id &&
-                normalizarObservacao(item.observacao) === obsNormalizada
-            );
+        const itemPrincipal = {
+            ...itemSelecionado,
+            cartKey: cartKeyPrincipal,
+            quantidade: quantidadeSelecionada,
+            observacao: obsFinal
+        };
 
-            if (index > -1) {
-                return prev.map((item, i) =>
-                    i === index ? { ...item, quantidade: item.quantidade + quantidadeSelecionada } : item
-                );
-            }
+        const adicionaisDoItem = adicionaisDisponiveis
+            .map(adicional => ({
+                adicional,
+                quantidade: Number(adicionaisSelecionadosItem[adicional.id] || 0)
+            }))
+            .filter(item => item.quantidade > 0)
+            .map(({ adicional, quantidade }) => ({
+                ...adicional,
+                tipo_item: 'adicional',
+                cartKey: criarCartKey(adicional.id, `adicional-${cartKeyPrincipal}`),
+                quantidade,
+                observacao: '',
+                produto_principal_id: itemSelecionado.id,
+                produto_principal_nome: itemSelecionado.nome,
+                produto_principal_cart_key: cartKeyPrincipal
+            }));
 
-            return [
-                ...prev,
-                {
-                    ...itemSelecionado,
-                    cartKey: criarCartKey(itemSelecionado.id, obsFinal),
-                    quantidade: quantidadeSelecionada,
-                    observacao: obsFinal
-                }
-            ];
-        });
+        setCarrinho(prev => [
+            ...prev,
+            itemPrincipal,
+            ...adicionaisDoItem
+        ]);
 
         fecharDetalheItem();
     };
@@ -888,44 +917,6 @@ const App = () => {
 
     const atualizarObs = (cartKey, obs) => {
         setCarrinho(prev => prev.map(item => item.cartKey === cartKey ? { ...item, observacao: obs } : item));
-    };
-
-    const quantidadeAdicionalNoCarrinho = (adicionalId) =>
-        carrinho
-            .filter(item => item.tipo_item === 'adicional' && String(item.id) === String(adicionalId))
-            .reduce((total, item) => total + Number(item.quantidade || 0), 0);
-
-    const alterarAdicionalCheckout = (adicional, delta) => {
-        setCarrinho(prev => {
-            const index = prev.findIndex(
-                item => item.tipo_item === 'adicional' && String(item.id) === String(adicional.id)
-            );
-
-            if (index === -1) {
-                if (delta <= 0) return prev;
-
-                return [
-                    ...prev,
-                    {
-                        ...adicional,
-                        tipo_item: 'adicional',
-                        cartKey: criarCartKey(adicional.id, 'adicional'),
-                        quantidade: 1,
-                        observacao: ''
-                    }
-                ];
-            }
-
-            const novaQuantidade = Number(prev[index].quantidade || 0) + delta;
-
-            if (novaQuantidade <= 0) {
-                return prev.filter((_, i) => i !== index);
-            }
-
-            return prev.map((item, i) =>
-                i === index ? { ...item, quantidade: novaQuantidade } : item
-            );
-        });
     };
 
     const salvarPerfilLocal = (dados = clienteDados) => {
@@ -3706,56 +3697,8 @@ const App = () => {
                                                 )}
                                             </div>
 
-                                            {adicionaisDisponiveis.length > 0 && (
-                                                <div>
-                                                    <h4 className="text-white font-black uppercase tracking-wider mb-3 md:mb-4 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center">
-                                                        <i className="fas fa-plus-circle text-[#d79e51] mr-3"></i> 2. Adicionais
-                                                    </h4>
-                                                    <p className="text-gray-400 text-xs md:text-sm mb-4">
-                                                        Quer incrementar seu lanche? Escolha os adicionais abaixo.
-                                                    </p>
-
-                                                    <div className="space-y-3">
-                                                        {adicionaisDisponiveis.map(adicional => {
-                                                            const quantidade = quantidadeAdicionalNoCarrinho(adicional.id);
-
-                                                            return (
-                                                                <div key={adicional.id} className={`flex items-center justify-between gap-3 p-3 md:p-4 rounded-2xl border transition-all ${quantidade > 0 ? 'border-[#d79e51]/60 bg-[#d79e51]/10' : 'border-gray-800 bg-[#1a191c]'}`}>
-                                                                    <div className="min-w-0">
-                                                                        <p className="text-white font-bold text-sm md:text-base truncate">{adicional.nome}</p>
-                                                                        {adicional.descricao && (
-                                                                            <p className="text-gray-500 text-[10px] md:text-xs mt-1 line-clamp-2">{adicional.descricao}</p>
-                                                                        )}
-                                                                        <p className="text-[#d79e51] font-black text-sm md:text-base mt-1">
-                                                                            + R$ {Number(adicional.preco).toFixed(2).replace('.', ',')}
-                                                                        </p>
-                                                                    </div>
-
-                                                                    <div className="flex items-center space-x-1 bg-[#242326] rounded-xl p-1 border border-gray-700 flex-shrink-0">
-                                                                        <button
-                                                                            onClick={() => alterarAdicionalCheckout(adicional, -1)}
-                                                                            disabled={quantidade === 0}
-                                                                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg transition-colors ${quantidade === 0 ? 'text-gray-600 cursor-not-allowed' : 'text-[#d79e51] hover:bg-[#363539]'}`}
-                                                                        >
-                                                                            -
-                                                                        </button>
-                                                                        <span className="text-white font-black w-7 text-center">{quantidade}</span>
-                                                                        <button
-                                                                            onClick={() => alterarAdicionalCheckout(adicional, 1)}
-                                                                            className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg text-[#d79e51] hover:bg-[#363539] transition-colors"
-                                                                        >
-                                                                            +
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-
                                             <div>
-                                                <h4 className="text-white font-black uppercase tracking-wider mb-4 md:mb-5 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center"><i className="fas fa-wallet text-[#d79e51] mr-3"></i> {adicionaisDisponiveis.length > 0 ? '3.' : '2.'} Pagamento</h4>
+                                                <h4 className="text-white font-black uppercase tracking-wider mb-4 md:mb-5 text-base md:text-xl border-b border-gray-800 pb-3 flex items-center"><i className="fas fa-wallet text-[#d79e51] mr-3"></i> 2. Pagamento</h4>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-4">
                                                     <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Cartão'})} className={`py-3.5 md:py-4 rounded-xl text-sm md:text-lg font-bold transition-all border-2 ${checkoutForm.pagamento === 'Cartão' ? 'border-[#d79e51] bg-[#d79e51]/10 text-[#d79e51] shadow-inner' : 'border-gray-700 bg-[#1a191c] text-gray-400 hover:border-gray-500 hover:bg-[#242326]'}`}><i className="fas fa-credit-card mr-2"></i> Cartão</button>
                                                     <button onClick={() => setCheckoutForm({...checkoutForm, pagamento: 'Dinheiro'})} className={`py-3.5 md:py-4 rounded-xl text-sm md:text-lg font-bold transition-all border-2 ${checkoutForm.pagamento === 'Dinheiro' ? 'border-[#d79e51] bg-[#d79e51]/10 text-[#d79e51] shadow-inner' : 'border-gray-700 bg-[#1a191c] text-gray-400 hover:border-gray-500 hover:bg-[#242326]'}`}><i className="fas fa-money-bill-wave mr-2"></i> Dinheiro</button>
@@ -3797,8 +3740,22 @@ const App = () => {
                                             </div>
                                         </div>
 
-                                        <button onClick={finalizarPedido} disabled={enviandoPedido} className={`w-full mt-8 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-[#1a191c] font-black tracking-widest text-lg md:text-xl py-4 md:py-6 rounded-2xl md:rounded-3xl active:scale-95 transition-all duration-300 flex justify-center items-center shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:shadow-[0_15px_40px_rgba(16,185,129,0.4)] ${enviandoPedido ? 'opacity-70 cursor-not-allowed' : ''}`}>
-                                            <i className={`fas ${enviandoPedido ? 'fa-spinner fa-spin' : 'fa-check-circle'} mr-3 text-2xl`}></i> {enviandoPedido ? 'ENVIANDO...' : 'CONFIRMAR PEDIDO'}
+                                        <button
+                                            onClick={finalizarPedido}
+                                            disabled={enviandoPedido}
+                                            style={{
+                                                background: enviandoPedido
+                                                    ? '#15803d'
+                                                    : 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)',
+                                                color: '#ffffff',
+                                                boxShadow: enviandoPedido
+                                                    ? '0 8px 22px rgba(34,197,94,0.18)'
+                                                    : '0 10px 30px rgba(34,197,94,0.38)'
+                                            }}
+                                            className={`w-full mt-8 font-black tracking-widest text-lg md:text-xl py-4 md:py-6 rounded-2xl md:rounded-3xl active:scale-95 transition-all duration-300 flex justify-center items-center border border-green-400/30 ${enviandoPedido ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110 hover:-translate-y-0.5'}`}
+                                        >
+                                            <i className={`fas ${enviandoPedido ? 'fa-spinner fa-spin' : 'fa-check-circle'} mr-3 text-2xl`}></i>
+                                            {enviandoPedido ? 'ENVIANDO...' : 'CONFIRMAR PEDIDO'}
                                         </button>
                                     </div>
                                 </div>
@@ -4229,6 +4186,67 @@ const App = () => {
                                         className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-2xl px-5 py-4 outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all resize-none text-sm md:text-base"
                                     ></textarea>
                                 </div>
+
+                                {adicionaisDisponiveis.length > 0 && !produtoEhAdicional(itemSelecionado) && (
+                                    <div className="mt-6">
+                                        <div className="flex items-center justify-between gap-3 mb-3">
+                                            <label className="block text-gray-400 text-xs md:text-sm font-bold uppercase tracking-widest">
+                                                <i className="fas fa-plus-circle mr-2 text-[#d79e51]"></i>Adicionais
+                                            </label>
+                                            <span className="text-[10px] md:text-xs text-gray-500 uppercase tracking-wider">Opcional</span>
+                                        </div>
+
+                                        <div className="space-y-2.5">
+                                            {adicionaisDisponiveis.map(adicional => {
+                                                const quantidadeAdicional = Number(adicionaisSelecionadosItem[adicional.id] || 0);
+
+                                                return (
+                                                    <div
+                                                        key={adicional.id}
+                                                        className={`flex items-center justify-between gap-3 p-3 md:p-4 rounded-2xl border transition-all ${
+                                                            quantidadeAdicional > 0
+                                                                ? 'border-[#d79e51]/60 bg-[#d79e51]/10'
+                                                                : 'border-gray-800 bg-[#1a191c]'
+                                                        }`}
+                                                    >
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-white font-bold text-sm md:text-base">{adicional.nome}</p>
+                                                            {adicional.descricao && (
+                                                                <p className="text-gray-500 text-[10px] md:text-xs mt-1 line-clamp-2">{adicional.descricao}</p>
+                                                            )}
+                                                            <p className="text-[#d79e51] font-black text-sm mt-1">
+                                                                + R$ {Number(adicional.preco).toFixed(2).replace('.', ',')}
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="flex items-center space-x-1 bg-[#242326] rounded-xl p-1 border border-gray-700 flex-shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => alterarAdicionalItem(adicional.id, -1)}
+                                                                disabled={quantidadeAdicional === 0}
+                                                                className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg transition-colors ${
+                                                                    quantidadeAdicional === 0
+                                                                        ? 'text-gray-600 cursor-not-allowed'
+                                                                        : 'text-[#d79e51] hover:bg-[#363539]'
+                                                                }`}
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <span className="text-white font-black w-7 text-center">{quantidadeAdicional}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => alterarAdicionalItem(adicional.id, 1)}
+                                                                className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg text-[#d79e51] hover:bg-[#363539] transition-colors"
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="p-5 md:p-6 border-t border-gray-800 bg-[#1f1e22] flex-shrink-0">
