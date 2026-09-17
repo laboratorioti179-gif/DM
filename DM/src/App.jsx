@@ -2333,35 +2333,116 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Area do Cardapio */}
-                        {adminView === 'cardapio' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5 relative z-10">
-                                {produtos.filter(p => p.restaurante_id === idAdminLogado || (!p.restaurante_id && isMatriz)).map(p => {
-                                    const cName = categorias.find(c => c.id === p.categoria_id)?.nome || 'Sem Categoria';
-                                    return (
-                                    <div key={p.id} className="bg-[#1f1e22] border border-gray-800 rounded-xl overflow-hidden shadow-md">
-                                        <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} className={`w-full h-28 object-cover ${!p.ativo ? 'grayscale opacity-50' : ''}`} />
-                                        <div className="p-4">
-                                            <p className="text-[9px] text-gray-400 uppercase tracking-widest">{cName}</p>
-                                            <h4 className="text-white font-medium text-sm my-1">{p.nome}</h4>
-                                            <p className="text-[#d79e51] font-bold mb-3">R$ {Number(p.preco).toFixed(2).replace('.',',')}</p>
-                                            <div className="flex justify-between items-center">
-                                                <span className={`text-xs px-2 py-1 rounded border ${p.ativo ? 'border-green-800 text-green-500' : 'border-red-800 text-red-500'}`}>{p.ativo ? 'Ativo' : 'Pausado'}</span>
-                                                <div className="flex space-x-2">
-                                                    <button onClick={() => excluirProduto(p.id)} className="text-xs px-3 py-1.5 bg-red-900/50 text-red-400 rounded hover:bg-red-800 hover:text-white transition-colors"><i className="fas fa-trash"></i></button>
-                                                    <button onClick={() => {setProdutoEditando(p); setModalProdutoAberto(true);}} className="text-xs px-3 py-1.5 bg-[#d79e51] text-[#1a191c] rounded"><i className="fas fa-pen"></i></button>
-                                                </div>
+                        {/* Area do Cardapio - separado por categoria */}
+                        {adminView === 'cardapio' && (() => {
+                            const produtosDaLoja = produtos.filter(
+                                p => p.restaurante_id === idAdminLogado || (!p.restaurante_id && isMatriz)
+                            );
+
+                            const categoriasComProdutos = categorias
+                                .map(categoria => ({
+                                    ...categoria,
+                                    produtos: produtosDaLoja.filter(
+                                        produto => String(produto.categoria_id) === String(categoria.id)
+                                    )
+                                }))
+                                .filter(categoria => categoria.produtos.length > 0);
+
+                            const produtosSemCategoria = produtosDaLoja.filter(
+                                produto => !categorias.some(
+                                    categoria => String(categoria.id) === String(produto.categoria_id)
+                                )
+                            );
+
+                            const renderProdutoAdmin = (p) => (
+                                <div key={p.id} className="bg-[#1f1e22] border border-gray-800 rounded-xl overflow-hidden shadow-md">
+                                    <img
+                                        src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'}
+                                        alt={p.nome}
+                                        className={`w-full h-28 object-cover ${!p.ativo ? 'grayscale opacity-50' : ''}`}
+                                    />
+                                    <div className="p-4">
+                                        <h4 className="text-white font-medium text-sm mb-1">{p.nome}</h4>
+                                        <p className="text-[#d79e51] font-bold mb-3">
+                                            R$ {Number(p.preco).toFixed(2).replace('.', ',')}
+                                        </p>
+                                        <div className="flex justify-between items-center">
+                                            <span className={`text-xs px-2 py-1 rounded border ${p.ativo ? 'border-green-800 text-green-500' : 'border-red-800 text-red-500'}`}>
+                                                {p.ativo ? 'Ativo' : 'Pausado'}
+                                            </span>
+                                            <div className="flex space-x-2">
+                                                <button
+                                                    onClick={() => excluirProduto(p.id)}
+                                                    className="text-xs px-3 py-1.5 bg-red-900/50 text-red-400 rounded hover:bg-red-800 hover:text-white transition-colors"
+                                                    title="Excluir produto"
+                                                >
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                                <button
+                                                    onClick={() => { setProdutoEditando(p); setModalProdutoAberto(true); }}
+                                                    className="text-xs px-3 py-1.5 bg-[#d79e51] text-[#1a191c] rounded hover:bg-[#e8b776] transition-colors"
+                                                    title="Editar produto"
+                                                >
+                                                    <i className="fas fa-pen"></i>
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
-                                )})}
-                                {produtos.filter(p => p.restaurante_id === idAdminLogado || (!p.restaurante_id && isMatriz)).length === 0 && (
-                                    <div className="col-span-full text-center text-gray-500 py-10">
+                                </div>
+                            );
+
+                            if (produtosDaLoja.length === 0) {
+                                return (
+                                    <div className="relative z-10 text-center text-gray-500 py-10">
                                         Nenhum produto cadastrado para esta loja ainda.
                                     </div>
-                                )}
-                            </div>
-                        )}
+                                );
+                            }
+
+                            return (
+                                <div className="relative z-10 space-y-8">
+                                    {categoriasComProdutos.map(categoria => (
+                                        <section key={categoria.id} className="space-y-4">
+                                            <div className="flex items-center gap-3 border-b border-gray-800 pb-3">
+                                                <div className="w-1 h-7 rounded-full bg-[#d79e51]"></div>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-white font-black text-base sm:text-lg uppercase tracking-wider">
+                                                        {categoria.nome}
+                                                    </h4>
+                                                    <p className="text-[10px] sm:text-xs text-gray-500">
+                                                        {categoria.produtos.length} {categoria.produtos.length === 1 ? 'produto' : 'produtos'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
+                                                {categoria.produtos.map(renderProdutoAdmin)}
+                                            </div>
+                                        </section>
+                                    ))}
+
+                                    {produtosSemCategoria.length > 0 && (
+                                        <section className="space-y-4">
+                                            <div className="flex items-center gap-3 border-b border-gray-800 pb-3">
+                                                <div className="w-1 h-7 rounded-full bg-gray-600"></div>
+                                                <div>
+                                                    <h4 className="text-gray-300 font-black text-base sm:text-lg uppercase tracking-wider">
+                                                        Sem Categoria
+                                                    </h4>
+                                                    <p className="text-[10px] sm:text-xs text-gray-500">
+                                                        {produtosSemCategoria.length} {produtosSemCategoria.length === 1 ? 'produto' : 'produtos'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
+                                                {produtosSemCategoria.map(renderProdutoAdmin)}
+                                            </div>
+                                        </section>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Area de Configs */}
                         {adminView === 'configs' && (
