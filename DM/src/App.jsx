@@ -1020,11 +1020,13 @@ const App = () => {
     const salvarPerfilNoBanco = async (userId, email = clienteEmail, dados = clienteDados) => {
         if (!supabase || !userId) throw new Error('Sessão do cliente indisponível.');
 
+        const celularNormalizado = String(dados.celular || '').trim();
+
         const payload = {
             user_id: userId,
             email: email || null,
             nome: dados.nome || '',
-            celular: dados.celular || '',
+            celular: celularNormalizado,
             cep: dados.cep || '',
             endereco: dados.endereco || '',
             referencia: dados.referencia || '',
@@ -1033,13 +1035,70 @@ const App = () => {
             updated_at: new Date().toISOString()
         };
 
+        // 1) Se a conta já estiver vinculada a um registro, atualiza esse registro.
+        const { data: perfilPorUsuario, error: erroBuscaUsuario } = await supabase
+            .from('clientes')
+            .select('user_id,celular')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (erroBuscaUsuario && erroBuscaUsuario.code !== 'PGRST116') {
+            throw erroBuscaUsuario;
+        }
+
+        if (perfilPorUsuario) {
+            const { data, error } = await supabase
+                .from('clientes')
+                .update(payload)
+                .eq('user_id', userId)
+                .select()
+                .maybeSingle();
+
+            if (error) throw error;
+
+            salvarPerfilLocal(dados);
+            return data || payload;
+        }
+
+        // 2) Compatibilidade com clientes antigos:
+        // antes do login por e-mail, o cadastro era identificado pelo celular.
+        // Se o celular já existir, reaproveitamos a mesma linha e vinculamos
+        // ao novo user_id, evitando o erro "duplicate key ... clientes_pkey".
+        if (celularNormalizado) {
+            const { data: perfilPorCelular, error: erroBuscaCelular } = await supabase
+                .from('clientes')
+                .select('user_id,celular')
+                .eq('celular', celularNormalizado)
+                .maybeSingle();
+
+            if (erroBuscaCelular && erroBuscaCelular.code !== 'PGRST116') {
+                throw erroBuscaCelular;
+            }
+
+            if (perfilPorCelular) {
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .update(payload)
+                    .eq('celular', celularNormalizado)
+                    .select()
+                    .maybeSingle();
+
+                if (error) throw error;
+
+                salvarPerfilLocal(dados);
+                return data || payload;
+            }
+        }
+
+        // 3) Cliente realmente novo: cria uma nova linha.
         const { data, error } = await supabase
             .from('clientes')
-            .upsert(payload, { onConflict: 'user_id' })
+            .insert([payload])
             .select()
             .maybeSingle();
 
         if (error) throw error;
+
         salvarPerfilLocal(dados);
         return data || payload;
     };
