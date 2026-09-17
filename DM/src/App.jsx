@@ -837,6 +837,16 @@ const App = () => {
         });
     };
 
+    const rolarParaCategoria = (categoriaId) => {
+        const elemento = document.getElementById(`categoria-${categoriaId}`);
+        if (!elemento) return;
+
+        elemento.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
+    };
+
     const abrirDetalheItem = (item) => {
         setItemSelecionado(item);
         setObservacao("");
@@ -3563,9 +3573,22 @@ const App = () => {
                             
                             <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-3 md:gap-4 pb-4 mb-8 md:mb-12 hide-scrollbar snap-x">
                                 {categorias
-                                    .filter(c => chaveCategoria(normalizarNomeCategoria(c.nome)) !== 'adicionais')
+                                    .filter(c =>
+                                        chaveCategoria(normalizarNomeCategoria(c.nome)) !== 'adicionais' &&
+                                        produtos.some(p =>
+                                            String(p.categoria_id) === String(c.id) &&
+                                            p.ativo &&
+                                            String(p.restaurante_id) === String(restaurante.id)
+                                        )
+                                    )
                                     .map(c => (
-                                        <button key={c.id} className="flex-none snap-start bg-[#1f1e22] border border-gray-700 px-5 md:px-8 py-2.5 md:py-3.5 rounded-full whitespace-nowrap text-sm md:text-base font-bold text-gray-300 hover:text-[#1a191c] hover:bg-[#d79e51] hover:border-[#d79e51] transition-all duration-300 shadow-sm hover:shadow-lg">
+                                        <button
+                                            key={c.id}
+                                            type="button"
+                                            onClick={() => rolarParaCategoria(c.id)}
+                                            className="flex-none snap-start bg-[#1f1e22] border border-gray-700 px-5 md:px-8 py-2.5 md:py-3.5 rounded-full whitespace-nowrap text-sm md:text-base font-bold text-gray-300 hover:text-[#1a191c] hover:bg-[#d79e51] hover:border-[#d79e51] active:scale-95 transition-all duration-300 shadow-sm hover:shadow-lg cursor-pointer"
+                                            aria-label={`Ir para a categoria ${c.nome}`}
+                                        >
                                             {c.nome}
                                         </button>
                                     ))}
@@ -3579,7 +3602,11 @@ const App = () => {
                                     const prods = produtos.filter(p => p.categoria_id === cat.id && p.ativo && p.restaurante_id === restaurante.id);
                                     if(prods.length === 0) return null;
                                     return (
-                                        <div key={cat.id} className="animate-fade-in">
+                                        <div
+                                            key={cat.id}
+                                            id={`categoria-${cat.id}`}
+                                            className="animate-fade-in scroll-mt-28 md:scroll-mt-36"
+                                        >
                                             <div className="flex items-center mb-6 md:mb-8">
                                                 <h3 className="text-xl md:text-3xl font-black text-[#d79e51] uppercase tracking-widest">{cat.nome}</h3>
                                                 <div className="h-[2px] flex-1 bg-gradient-to-r from-gray-700 to-transparent ml-4 md:ml-6"></div>
