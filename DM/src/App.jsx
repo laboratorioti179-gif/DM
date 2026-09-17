@@ -211,6 +211,33 @@ const App = () => {
             : valor.toFixed(2).replace('.', ',').replace(/,00$/, '');
     };
 
+    // Fotos ilustrativas do cardápio - lote 1.
+    // Se o produto já tiver imagem_url cadastrada no Supabase, ela sempre tem prioridade.
+    const IMAGENS_PRODUTOS_LOTE_1 = {
+        'n6tquei': 'https://images.pexels.com/photos/16108602/pexels-photo-16108602/free-photo-of-close-up-of-a-cheeseburger-with-bacon.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        'kt9d2on': 'https://images.pexels.com/photos/15264024/pexels-photo-15264024/free-photo-of-food-on-a-plate.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        'hw98xp0': 'https://images.pexels.com/photos/36501077/pexels-photo-36501077/free-photo-of-gourmet-hot-dog-with-cheese-and-bacon-topping.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        '3k8wlgi': 'https://images.pexels.com/photos/36501077/pexels-photo-36501077/free-photo-of-gourmet-hot-dog-with-cheese-and-bacon-topping.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        'thmd6kc': 'https://images.pexels.com/photos/8946523/pexels-photo-8946523.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        'sdi640n': 'https://images.pexels.com/photos/8946523/pexels-photo-8946523.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        '4s7o5t3': 'https://images.pexels.com/photos/16108602/pexels-photo-16108602/free-photo-of-close-up-of-a-cheeseburger-with-bacon.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        '2c8mby9': 'https://images.pexels.com/photos/31450807/pexels-photo-31450807/free-photo-of-delicious-gourmet-cheeseburger-on-plate.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        'mxabhg3': 'https://images.pexels.com/photos/8946523/pexels-photo-8946523.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop',
+        '43f8yp3': 'https://images.pexels.com/photos/36501077/pexels-photo-36501077/free-photo-of-gourmet-hot-dog-with-cheese-and-bacon-topping.jpeg?auto=compress&cs=tinysrgb&w=1200&h=900&fit=crop'
+    };
+
+    const obterImagemProduto = (produto) => {
+        if (!produto) {
+            return 'https://placehold.co/800x600/2b2a2d/8e8e8e?text=X';
+        }
+
+        const imagemBanco = String(produto.imagem_url || '').trim();
+        if (imagemBanco) return imagemBanco;
+
+        return IMAGENS_PRODUTOS_LOTE_1[String(produto.id)] ||
+            'https://placehold.co/800x600/2b2a2d/8e8e8e?text=X';
+    };
+
     const adicionaisDisponiveis = produtos.filter(
         produto =>
             produto.ativo &&
@@ -2885,7 +2912,7 @@ const App = () => {
                             const renderProdutoAdmin = (p) => (
                                 <div key={p.id} className="bg-[#1f1e22] border border-gray-800 rounded-xl overflow-hidden shadow-md">
                                     <img
-                                        src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'}
+                                        src={obterImagemProduto(p)}
                                         alt={p.nome}
                                         className={`w-full h-28 object-cover ${!p.ativo ? 'grayscale opacity-50' : ''}`}
                                     />
@@ -3741,7 +3768,7 @@ const App = () => {
                                                 {prods.map(p => (
                                                     <div key={p.id} className="bg-[#363539] rounded-2xl sm:rounded-3xl p-3 md:p-5 flex flex-col sm:flex-row shadow-md border border-gray-700/50 h-full hover:border-[#d79e51]/50 hover:shadow-[0_15px_30px_rgba(0,0,0,0.4)] hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer" onClick={() => abrirDetalheItem(p)}>
                                                         <div className="overflow-hidden rounded-2xl w-full h-40 sm:w-28 sm:h-28 md:w-40 md:h-40 flex-shrink-0 relative">
-                                                            <img src={p.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={p.nome} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                                                            <img src={obterImagemProduto(p)} alt={p.nome} onError={(e) => { e.currentTarget.src = 'https://placehold.co/800x600/2b2a2d/8e8e8e?text=Sem+foto'; }} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
                                                             <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
                                                             {produtoTemDesconto(p) && (
                                                                 <div className="absolute top-2 right-2 bg-red-500 text-white text-[9px] md:text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-lg">
@@ -4336,7 +4363,7 @@ const App = () => {
                             </button>
 
                             <div className="w-full h-40 sm:h-48 md:h-64 relative bg-gray-900 flex-shrink-0">
-                                <img src={itemSelecionado.imagem_url || 'https://placehold.co/400x300/2b2a2d/8e8e8e?text=X'} alt={itemSelecionado.nome} className="w-full h-full object-cover" />
+                                <img src={obterImagemProduto(itemSelecionado)} alt={itemSelecionado.nome} onError={(e) => { e.currentTarget.src = 'https://placehold.co/800x600/2b2a2d/8e8e8e?text=Sem+foto'; }} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-[#242326] to-transparent"></div>
                                 {produtoTemDesconto(itemSelecionado) && (
                                     <div className="absolute top-4 left-4 bg-red-500 text-white text-xs md:text-sm font-black px-3 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
