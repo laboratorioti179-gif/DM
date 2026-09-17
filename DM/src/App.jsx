@@ -135,7 +135,8 @@ const App = () => {
     const [financeiroForm, setFinanceiroForm] = useState({ restaurante_id: '', tipo: 'entrada', valor: '', descricao: '' });
     const [movimentacoes, setMovimentacoes] = useState([]);
     const [filtroLoja, setFiltroLoja] = useState('');
-    const [filtroData, setFiltroData] = useState('');
+    const [filtroDataInicio, setFiltroDataInicio] = useState('');
+    const [filtroDataFim, setFiltroDataFim] = useState('');
     
     const [promoForm, setPromoForm] = useState({ titulo: '', mensagem: '', webhookUrl: '' });
     const [webhookEditavel, setWebhookEditavel] = useState(true);
@@ -660,7 +661,37 @@ const App = () => {
         return info.filial_id === idAdminLogado;
     });
 
-    const pedidosConcluidos = pedidosAdminFiltrados.filter(p => p.status === 'finalizado');
+    const dataLocalParaFiltro = (valorData) => {
+        if (!valorData) return '';
+
+        const data = new Date(valorData);
+        if (Number.isNaN(data.getTime())) return '';
+
+        const ano = data.getFullYear();
+        const mes = String(data.getMonth() + 1).padStart(2, '0');
+        const dia = String(data.getDate()).padStart(2, '0');
+
+        return `${ano}-${mes}-${dia}`;
+    };
+
+    const estaDentroDoPeriodoFinanceiro = (valorData) => {
+        const dataItem = dataLocalParaFiltro(valorData);
+        if (!dataItem) return false;
+
+        if (filtroDataInicio && dataItem < filtroDataInicio) return false;
+        if (filtroDataFim && dataItem > filtroDataFim) return false;
+
+        return true;
+    };
+
+    const limparPeriodoFinanceiro = () => {
+        setFiltroDataInicio('');
+        setFiltroDataFim('');
+    };
+
+    const pedidosConcluidos = pedidosAdminFiltrados.filter(
+        p => p.status === 'finalizado' && estaDentroDoPeriodoFinanceiro(p.created_at)
+    );
     const totalPedidosFinalizados = pedidosConcluidos.reduce((acc, p) => acc + Number(p.total), 0);
     
     const vendasPorProduto = {};
@@ -709,8 +740,11 @@ const App = () => {
     });
     
     const movimentacoesFiltradas = movimentacoes.filter(m => {
-        if (!isAdmin || !idAdminLogado) return true;
-        return m.restaurante_id === idAdminLogado;
+        const matchLojaAdmin = (!isAdmin || !idAdminLogado)
+            ? true
+            : m.restaurante_id === idAdminLogado;
+
+        return matchLojaAdmin && estaDentroDoPeriodoFinanceiro(m.created_at);
     });
 
     const historicoMovimentacoes = movimentacoesFiltradas.map(m => ({
@@ -732,8 +766,7 @@ const App = () => {
     
     const historicoFiltrado = historicoCombinado.filter(item => {
         const matchLoja = filtroLoja ? item.loja === filtroLoja : true;
-        const matchData = filtroData ? new Date(item.data).toISOString().split('T')[0] === filtroData : true;
-        return matchLoja && matchData;
+        return matchLoja;
     });
 
     const baixarRelatorio = () => {
@@ -747,7 +780,11 @@ const App = () => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', 'relatorio_financeiro.csv');
+        const sufixoPeriodo = filtroDataInicio || filtroDataFim
+            ? `_${filtroDataInicio || 'inicio'}_a_${filtroDataFim || 'hoje'}`
+            : '';
+
+        link.setAttribute('download', `relatorio_financeiro${sufixoPeriodo}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -3317,8 +3354,17 @@ const App = () => {
                                 <div className="bg-[#242326] rounded-xl border border-gray-800 shadow-sm overflow-hidden flex flex-col">
                                     <div className="p-4 border-b border-gray-800 bg-[#1f1e22] rounded-t-xl flex justify-between items-center">
                                         <h4 className="text-white font-medium tracking-wide uppercase text-sm">Histórico e Saldo</h4>
-                                        <div className="text-sm font-bold text-gray-300">
-                                            Saldo Geral: <span className={saldoGeral >= 0 ? 'text-green-400 ml-1' : 'text-red-400 ml-1'}>R$ {saldoGeral.toFixed(2).replace('.', ',')}</span>
+                                        <div className="text-right">
+                                            <div className="text-sm font-bold text-gray-300">
+                                                Saldo Geral: <span className={saldoGeral >= 0 ? 'text-green-400 ml-1' : 'text-red-400 ml-1'}>R$ {saldoGeral.toFixed(2).replace('.', ',')}</span>
+                                            </div>
+                                            {(filtroDataInicio || filtroDataFim) && (
+                                                <div className="text-[10px] text-gray-500 mt-1">
+                                                    Período: {filtroDataInicio ? new Date(`${filtroDataInicio}T12:00:00`).toLocaleDateString('pt-BR') : 'início'}
+                                                    {' até '}
+                                                    {filtroDataFim ? new Date(`${filtroDataFim}T12:00:00`).toLocaleDateString('pt-BR') : 'hoje'}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="p-4 border-b border-gray-800 bg-[#1a191c] flex flex-col md:flex-row gap-4 items-end">
@@ -3330,9 +3376,34 @@ const App = () => {
                                             </select>
                                         </div>
                                         <div className="flex-1 w-full">
-                                            <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Filtrar por Data</label>
-                                            <input type="date" value={filtroData} onChange={(e) => setFiltroData(e.target.value)} className="w-full bg-[#242326] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-xs" />
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Data inicial</label>
+                                            <input
+                                                type="date"
+                                                value={filtroDataInicio}
+                                                max={filtroDataFim || undefined}
+                                                onChange={(e) => setFiltroDataInicio(e.target.value)}
+                                                className="w-full bg-[#242326] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-xs"
+                                            />
                                         </div>
+                                        <div className="flex-1 w-full">
+                                            <label className="block text-gray-400 text-[10px] font-bold mb-1 uppercase tracking-wider">Data final</label>
+                                            <input
+                                                type="date"
+                                                value={filtroDataFim}
+                                                min={filtroDataInicio || undefined}
+                                                onChange={(e) => setFiltroDataFim(e.target.value)}
+                                                className="w-full bg-[#242326] text-white border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#d79e51] text-xs"
+                                            />
+                                        </div>
+                                        {(filtroDataInicio || filtroDataFim) && (
+                                            <button
+                                                type="button"
+                                                onClick={limparPeriodoFinanceiro}
+                                                className="w-full md:w-auto px-4 py-2 bg-transparent hover:bg-[#363539] text-gray-300 rounded-lg font-bold text-xs transition-all flex items-center justify-center border border-gray-700"
+                                            >
+                                                <i className="fas fa-times mr-2"></i> Limpar período
+                                            </button>
+                                        )}
                                         <button onClick={baixarRelatorio} className="w-full md:w-auto px-4 py-2 bg-[#363539] hover:bg-gray-700 text-white rounded-lg font-bold text-xs shadow-md transition-all flex items-center justify-center border border-gray-600">
                                             <i className="fas fa-download mr-2"></i> Baixar CSV
                                         </button>
