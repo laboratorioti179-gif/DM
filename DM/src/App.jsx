@@ -72,6 +72,11 @@ const App = () => {
     const [pedidosAdmin, setPedidosAdmin] = useState([]);
     const [clienteAuth, setClienteAuth] = useState(false);
     const [clienteDados, setClienteDados] = useState({ nome: '', celular: '', cep: '', endereco: '', referencia: '', bairro: '', lat: null, lng: null, taxa_entrega_calculada: 5 });
+    const [clienteEmail, setClienteEmail] = useState('');
+    const [clienteSenha, setClienteSenha] = useState('');
+    const [clienteModoAcesso, setClienteModoAcesso] = useState('login'); // login | cadastro
+    const [clienteAuthLoading, setClienteAuthLoading] = useState(false);
+    const [clienteEditandoPerfil, setClienteEditandoPerfil] = useState(false);
     const [bairroLoja, setBairroLoja] = useState('');
     const [distanciaEntrega, setDistanciaEntrega] = useState(null);
     const [erroCep, setErroCep] = useState('');
@@ -923,48 +928,333 @@ const App = () => {
         });
     };
 
-    const salvarPerfil = async () => {
+    const salvarPerfilLocal = (dados = clienteDados) => {
+        try {
+            localStorage.setItem('cliente_nome', dados.nome || '');
+            localStorage.setItem('cliente_celular', dados.celular || '');
+            localStorage.setItem('cliente_cep', dados.cep || '');
+            localStorage.setItem('cliente_endereco', dados.endereco || '');
+            localStorage.setItem('cliente_referencia', dados.referencia || '');
+            localStorage.setItem('cliente_bairro', dados.bairro || '');
+            localStorage.setItem('cliente_taxa_entrega', String(dados.taxa_entrega_calculada ?? 5));
+        } catch (e) {
+            console.warn('Não foi possível salvar o perfil localmente.', e);
+        }
+    };
+
+    const limparPerfilLocal = () => {
+        [
+            'cliente_nome',
+            'cliente_celular',
+            'cliente_cep',
+            'cliente_endereco',
+            'cliente_referencia',
+            'cliente_bairro',
+            'cliente_taxa_entrega'
+        ].forEach(chave => localStorage.removeItem(chave));
+    };
+
+    const salvarPerfilNoBanco = async (userId, email = clienteEmail, dados = clienteDados) => {
+        if (!supabase || !userId) throw new Error('Sessão do cliente indisponível.');
+
+        const payload = {
+            user_id: userId,
+            email: email || null,
+            nome: dados.nome || '',
+            celular: dados.celular || '',
+            cep: dados.cep || '',
+            endereco: dados.endereco || '',
+            referencia: dados.referencia || '',
+            bairro: dados.bairro || '',
+            taxa_entrega_calculada: Number(dados.taxa_entrega_calculada ?? 5),
+            updated_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase
+            .from('clientes')
+            .upsert(payload, { onConflict: 'user_id' })
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+        salvarPerfilLocal(dados);
+        return data || payload;
+    };
+
+    const carregarPerfilCliente = async (user) => {
+        if (!supabase || !user?.id || !user?.email) return null;
+
+        setClienteEmail(user.email);
+
+        const { data, error } = await supabase
+            .from('clientes')
+            .select('user_id,email,nome,celular,cep,endereco,referencia,bairro,taxa_entrega_calculada')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+            console.warn('Não foi possível carregar o perfil do cliente:', error);
+        }
+
+        let perfil = data || null;
+
+        // Primeiro acesso após confirmação de e-mail:
+        // recupera os dados guardados no user_metadata durante o cadastro.
+        if (!perfil) {
+            const meta = user.user_metadata || {};
+            const dadosMeta = {
+                nome: meta.nome || '',
+                celular: meta.celular || '',
+                cep: meta.cep || '',
+                endereco: meta.endereco || '',
+                referencia: meta.referencia || '',
+                bairro: meta.bairro || '',
+                lat: null,
+                lng: null,
+                taxa_entrega_calculada: Number(meta.taxa_entrega_calculada ?? 5)
+            };
+
+            if (dadosMeta.nome || dadosMeta.celular || dadosMeta.endereco) {
+                try {
+                    perfil = await salvarPerfilNoBanco(user.id, user.email, dadosMeta);
+                } catch (e) {
+                    console.warn('Não foi possível criar o perfil a partir dos dados do cadastro:', e);
+                }
+            }
+        }
+
+        if (perfil) {
+            const dadosCarregados = {
+                nome: perfil.nome || '',
+                celular: perfil.celular || '',
+                cep: perfil.cep || '',
+                endereco: perfil.endereco || '',
+                referencia: perfil.referencia || '',
+                bairro: perfil.bairro || '',
+                lat: null,
+                lng: null,
+                taxa_entrega_calculada: Number(perfil.taxa_entrega_calculada ?? 5)
+            };
+
+            setClienteDados(dadosCarregados);
+            salvarPerfilLocal(dadosCarregados);
+
+            // Revalida o CEP para restaurar latitude, longitude, distância e frete.
+            if (dadosCarregados.cep) {
+                buscarCep(dadosCarregados.cep).catch?.(() => {});
+            }
+        }
+
+        setClienteAuth(true);
+        setAuthUserId(user.id);
+        return perfil;
+    };
+
+    const cadastrarCliente = async (e) => {
+        e?.preventDefault?.();
+        if (!supabase || clienteAuthLoading) return;
+
+        if (!clienteEmail || !clienteSenha) {
+            alert('Informe e-mail e senha.');
+            return;
+        }
+        if (clienteSenha.length < 6) {
+            alert('A senha deve ter pelo menos 6 caracteres.');
+            return;
+        }
         if (!clienteDados.nome || !clienteDados.celular) {
             alert('Preencha nome e celular.');
             return;
         }
 
+        setClienteAuthLoading(true);
+
         try {
-            const usuario = await garantirSessaoCliente();
-            if (!usuario) throw new Error('Sessão do cliente indisponível.');
-
-            localStorage.setItem('cliente_nome', clienteDados.nome);
-            localStorage.setItem('cliente_celular', clienteDados.celular);
-            localStorage.setItem('cliente_cep', clienteDados.cep || '');
-            localStorage.setItem('cliente_endereco', clienteDados.endereco || '');
-            localStorage.setItem('cliente_referencia', clienteDados.referencia || '');
-            localStorage.setItem('cliente_bairro', clienteDados.bairro || '');
-            localStorage.setItem('cliente_taxa_entrega', String(clienteDados.taxa_entrega_calculada ?? 5));
-            setClienteAuth(true);
-            setAuthUserId(usuario.id);
-
-            if (supabase) {
-                const { error } = await supabase.from('clientes').upsert({
-                    user_id: usuario.id,
-                    celular: clienteDados.celular,
-                    nome: clienteDados.nome
-                }, { onConflict: 'celular' });
-                if (error) console.warn('Não foi possível sincronizar o perfil do cliente:', error);
-                carregarMeusPedidos();
+            // Remove somente a sessão anônima antes de criar a conta real.
+            const { data: sessaoAtual } = await supabase.auth.getSession();
+            if (sessaoAtual?.session?.user && !sessaoAtual.session.user.email) {
+                await supabase.auth.signOut();
             }
+
+            const { data, error } = await supabase.auth.signUp({
+                email: clienteEmail.trim(),
+                password: clienteSenha,
+                options: {
+                    data: {
+                        role: 'cliente',
+                        nome: clienteDados.nome,
+                        celular: clienteDados.celular,
+                        cep: clienteDados.cep || '',
+                        endereco: clienteDados.endereco || '',
+                        referencia: clienteDados.referencia || '',
+                        bairro: clienteDados.bairro || '',
+                        taxa_entrega_calculada: Number(clienteDados.taxa_entrega_calculada ?? 5)
+                    }
+                }
+            });
+
+            if (error) throw error;
+
+            salvarPerfilLocal(clienteDados);
+
+            if (data?.session?.user) {
+                await salvarPerfilNoBanco(data.session.user.id, data.session.user.email, clienteDados);
+                setClienteAuth(true);
+                setAuthUserId(data.session.user.id);
+                setClienteEditandoPerfil(false);
+                setClienteSenha('');
+                carregarMeusPedidos();
+
+                if (redirectPosLogin) {
+                    setView(redirectPosLogin);
+                    setRedirectPosLogin(null);
+                }
+            } else {
+                alert('Conta criada! Verifique seu e-mail para confirmar o cadastro. Depois, volte aqui e entre com seu e-mail e senha.');
+                setClienteModoAcesso('login');
+                setClienteSenha('');
+            }
+        } catch (err) {
+            console.error('Erro ao criar conta:', err);
+            const msg = String(err?.message || '');
+            if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered')) {
+                alert('Este e-mail já possui uma conta. Use a opção “Já tenho conta”.');
+                setClienteModoAcesso('login');
+            } else {
+                alert(msg || 'Não foi possível criar sua conta.');
+            }
+        } finally {
+            setClienteAuthLoading(false);
+        }
+    };
+
+    const loginCliente = async (e) => {
+        e?.preventDefault?.();
+        if (!supabase || clienteAuthLoading) return;
+
+        if (!clienteEmail || !clienteSenha) {
+            alert('Informe e-mail e senha.');
+            return;
+        }
+
+        setClienteAuthLoading(true);
+
+        try {
+            const { data: sessaoAtual } = await supabase.auth.getSession();
+            if (sessaoAtual?.session?.user && !sessaoAtual.session.user.email) {
+                await supabase.auth.signOut();
+            }
+
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: clienteEmail.trim(),
+                password: clienteSenha
+            });
+
+            if (error) throw error;
+
+            const user = data?.user;
+            const meta = user?.app_metadata || {};
+            const role = String(meta.role || '').toLowerCase();
+            const usuarioAdmin =
+                ['admin', 'matriz'].includes(role) ||
+                Boolean(meta.restaurante_id) ||
+                ['dogsdomirso.ls@outlook.com', 'dogsdomirso.ls2@outlook.com'].includes(String(user?.email || '').toLowerCase());
+
+            if (usuarioAdmin) {
+                await supabase.auth.signOut();
+                throw new Error('Este acesso pertence à área administrativa. Use “Área Restrita (Gestão)”.');
+            }
+
+            await carregarPerfilCliente(user);
+            setClienteSenha('');
+            carregarMeusPedidos();
+
+            if (redirectPosLogin) {
+                setView(redirectPosLogin);
+                setRedirectPosLogin(null);
+            }
+        } catch (err) {
+            console.error('Erro no login do cliente:', err);
+            const msg = String(err?.message || '');
+            if (msg.toLowerCase().includes('invalid login credentials')) {
+                alert('E-mail ou senha incorretos.');
+            } else if (msg.toLowerCase().includes('email not confirmed')) {
+                alert('Confirme seu e-mail antes de entrar.');
+            } else {
+                alert(msg || 'Não foi possível entrar na sua conta.');
+            }
+        } finally {
+            setClienteAuthLoading(false);
+        }
+    };
+
+    const salvarPerfil = async () => {
+        if (!clienteAuth || !authUserId) {
+            alert('Entre na sua conta para salvar o perfil.');
+            return;
+        }
+
+        if (!clienteDados.nome || !clienteDados.celular) {
+            alert('Preencha nome e celular.');
+            return;
+        }
+
+        setClienteAuthLoading(true);
+
+        try {
+            await salvarPerfilNoBanco(authUserId, clienteEmail, clienteDados);
+            setClienteEditandoPerfil(false);
+            carregarMeusPedidos();
 
             if (redirectPosLogin) {
                 setView(redirectPosLogin);
                 setRedirectPosLogin(null);
             } else {
-                setView('home');
+                alert('Perfil atualizado com sucesso!');
             }
         } catch (err) {
             console.error(err);
-            alert(err.message || 'Não foi possível salvar o perfil com segurança.');
+            alert(err.message || 'Não foi possível salvar o perfil.');
+        } finally {
+            setClienteAuthLoading(false);
         }
     };
 
+    const sairCliente = async () => {
+        try {
+            if (supabase) await supabase.auth.signOut();
+        } catch (e) {
+            console.warn('Erro ao sair da conta do cliente:', e);
+        }
+
+        setClienteAuth(false);
+        setClienteEditandoPerfil(false);
+        setClienteEmail('');
+        setClienteSenha('');
+        setAuthUserId(null);
+        setMeusPedidos([]);
+        setClienteDados({
+            nome: '',
+            celular: '',
+            cep: '',
+            endereco: '',
+            referencia: '',
+            bairro: '',
+            lat: null,
+            lng: null,
+            taxa_entrega_calculada: 5
+        });
+        setErroCep('');
+        setDistanciaEntrega(null);
+        limparPerfilLocal();
+        setClienteModoAcesso('login');
+
+        try {
+            await garantirSessaoCliente();
+        } catch (e) {
+            console.warn(e.message);
+        }
+    };
 
     const salvarCacheSeguro = (chave, valor) => {
         try {
@@ -1245,11 +1535,12 @@ const App = () => {
         const bairro = localStorage.getItem('cliente_bairro') || '';
         const taxaEntrega = Number(localStorage.getItem('cliente_taxa_entrega') || 5);
 
-        if (nome && cel) {
-            setClienteAuth(true);
+        if (nome || cel || cep || end || ref) {
+            // Mantém os dados antigos preenchidos para facilitar a criação da conta,
+            // mas somente uma sessão autenticada por e-mail é considerada login.
             setClienteDados({
-                nome,
-                celular: cel,
+                nome: nome || '',
+                celular: cel || '',
                 cep,
                 endereco: end,
                 referencia: ref,
@@ -1297,17 +1588,39 @@ const App = () => {
             const user = session?.user || null;
             setAuthUserId(user?.id || null);
 
-            if (user?.email) {
-                const meta = user.app_metadata || {};
+            const meta = user?.app_metadata || {};
+            const role = String(meta.role || '').toLowerCase();
+            const email = String(user?.email || '').toLowerCase();
+
+            const usuarioAdmin =
+                Boolean(user?.email) &&
+                (
+                    ['admin', 'matriz'].includes(role) ||
+                    Boolean(meta.restaurante_id) ||
+                    ['dogsdomirso.ls@outlook.com', 'dogsdomirso.ls2@outlook.com'].includes(email)
+                );
+
+            if (usuarioAdmin) {
                 setAdminEmail(user.email);
-                setAdminRole(meta.role || 'admin');
+                setAdminRole(role || 'admin');
                 setAdminRestauranteId(meta.restaurante_id || null);
                 setIsAdmin(true);
+                setClienteAuth(false);
             } else {
                 setIsAdmin(false);
                 setAdminEmail('');
                 setAdminRole('');
                 setAdminRestauranteId(null);
+
+                if (user?.email) {
+                    setClienteEmail(user.email);
+                    setClienteAuth(true);
+                    carregarPerfilCliente(user).catch(err =>
+                        console.warn('Não foi possível carregar o perfil após autenticação:', err)
+                    );
+                } else {
+                    setClienteAuth(false);
+                }
             }
         };
 
@@ -1736,6 +2049,13 @@ const App = () => {
 
     const finalizarPedido = async () => {
         if (enviandoPedido) return;
+
+        if (!clienteAuth) {
+            alert('Entre na sua conta ou crie uma conta para finalizar o pedido.');
+            setRedirectPosLogin('carrinho');
+            setView('perfil');
+            return;
+        }
 
         if (!supabase) {
             alert('Sem conexão com o restaurante. O pedido NÃO foi enviado. Verifique sua internet e tente novamente.');
@@ -3579,69 +3899,207 @@ const App = () => {
 
                     {/* View Perfil e Admin Login */}
                     {view === 'perfil' && (
-                        <div className="pt-10 md:pt-16 flex flex-col items-center min-h-[60vh] px-4 max-w-4xl mx-auto">
+                        <div className="pt-8 md:pt-14 flex flex-col items-center min-h-[60vh] px-4 max-w-4xl mx-auto">
                             <h2 className="font-black text-3xl md:text-5xl text-white uppercase tracking-widest text-center mb-3">Seu Perfil</h2>
-                            <p className="text-gray-400 text-sm md:text-lg text-center mb-10 md:mb-14">Configure seus dados para agilizar seus próximos pedidos.</p>
-                            
+                            <p className="text-gray-400 text-sm md:text-lg text-center mb-8 md:mb-12">
+                                Entre na sua conta para manter endereço, dados e pedidos salvos em qualquer aparelho.
+                            </p>
+
                             {!clienteAuth ? (
+                                <div className="w-full max-w-md md:max-w-xl">
+                                    <div className="grid grid-cols-2 gap-2 bg-[#1a191c] border border-gray-800 p-1.5 rounded-2xl mb-5">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setClienteModoAcesso('login'); setClienteSenha(''); }}
+                                            className={`py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition-all ${clienteModoAcesso === 'login' ? 'bg-[#d79e51] text-[#1a191c]' : 'text-gray-400 hover:text-white'}`}
+                                        >
+                                            Já tenho conta
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setClienteModoAcesso('cadastro'); setClienteSenha(''); }}
+                                            className={`py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition-all ${clienteModoAcesso === 'cadastro' ? 'bg-[#d79e51] text-[#1a191c]' : 'text-gray-400 hover:text-white'}`}
+                                        >
+                                            Criar conta
+                                        </button>
+                                    </div>
+
+                                    {clienteModoAcesso === 'login' ? (
+                                        <form onSubmit={loginCliente} className="space-y-5 md:space-y-6 bg-[#1f1e22] p-6 md:p-10 rounded-3xl border border-gray-800 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                                            <div className="text-center mb-2">
+                                                <div className="w-16 h-16 bg-[#363539] rounded-full mx-auto flex items-center justify-center mb-4 border border-gray-700">
+                                                    <i className="fas fa-user text-2xl text-[#d79e51]"></i>
+                                                </div>
+                                                <h3 className="text-white text-xl md:text-2xl font-black">Bem-vindo de volta</h3>
+                                                <p className="text-gray-500 text-xs md:text-sm mt-2">Seus dados e endereço serão carregados automaticamente.</p>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-widest">E-mail</label>
+                                                <input
+                                                    type="email"
+                                                    value={clienteEmail}
+                                                    onChange={e => setClienteEmail(e.target.value)}
+                                                    className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg"
+                                                    required
+                                                    placeholder="seu@email.com"
+                                                    autoComplete="email"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-widest">Senha</label>
+                                                <input
+                                                    type="password"
+                                                    value={clienteSenha}
+                                                    onChange={e => setClienteSenha(e.target.value)}
+                                                    className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg"
+                                                    required
+                                                    placeholder="••••••••"
+                                                    autoComplete="current-password"
+                                                />
+                                            </div>
+
+                                            <button type="submit" disabled={clienteAuthLoading} className={`w-full bg-[#d79e51] text-[#1a191c] font-black text-lg md:text-xl py-4 md:py-5 rounded-xl md:rounded-2xl shadow-[0_10px_30px_rgba(215,158,81,0.3)] transition-all mt-6 tracking-wider ${clienteAuthLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[#e8b776] active:scale-95'}`}>
+                                                {clienteAuthLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>ENTRANDO...</> : 'ENTRAR'}
+                                            </button>
+
+                                            <p className="text-center text-gray-500 text-xs md:text-sm">
+                                                Ainda não tem conta?{' '}
+                                                <button type="button" onClick={() => setClienteModoAcesso('cadastro')} className="text-[#d79e51] font-bold hover:text-white">
+                                                    Criar minha conta
+                                                </button>
+                                            </p>
+                                        </form>
+                                    ) : (
+                                        <form onSubmit={cadastrarCliente} className="space-y-5 md:space-y-6 bg-[#1f1e22] p-6 md:p-10 rounded-3xl border border-gray-800 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                                            <div className="mb-2">
+                                                <h3 className="text-white text-xl md:text-2xl font-black">Criar sua conta</h3>
+                                                <p className="text-gray-500 text-xs md:text-sm mt-2">Cadastre uma vez e seus dados ficam disponíveis nos próximos pedidos.</p>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-widest">E-mail *</label>
+                                                <input type="email" value={clienteEmail} onChange={e => setClienteEmail(e.target.value)} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required placeholder="seu@email.com" autoComplete="email" />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-widest">Crie uma senha *</label>
+                                                <input type="password" value={clienteSenha} onChange={e => setClienteSenha(e.target.value)} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required minLength="6" placeholder="Mínimo de 6 caracteres" autoComplete="new-password" />
+                                            </div>
+
+                                            <div className="border-t border-gray-800 pt-6">
+                                                <div className="grid grid-cols-1 gap-5">
+                                                    <div>
+                                                        <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-widest">Nome Completo *</label>
+                                                        <input type="text" value={clienteDados.nome} onChange={e => setClienteDados({...clienteDados, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] text-base md:text-lg" required placeholder="Como gosta de ser chamado?" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-widest">Celular (WhatsApp) *</label>
+                                                        <input type="tel" value={clienteDados.celular} onChange={e => setClienteDados({...clienteDados, celular: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] text-base md:text-lg" required placeholder="(00) 90000-0000" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="border-t border-gray-800 pt-6 md:pt-8">
+                                                <h4 className="text-white text-base md:text-lg font-black uppercase tracking-widest mb-5 flex items-center"><i className="fas fa-map-marker-alt text-[#d79e51] mr-3"></i> Endereço de Entrega</h4>
+                                                <div className="space-y-5">
+                                                    <div>
+                                                        <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">CEP</label>
+                                                        <input type="text" value={clienteDados.cep || ''} onBlur={(e) => buscarCep(e.target.value)} onChange={e => setClienteDados({...clienteDados, cep: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 text-base" placeholder="00000-000" />
+                                                        {cepBuscando && <p className="text-xs md:text-sm text-[#d79e51] mt-3 font-medium"><i className="fas fa-spinner fa-spin mr-2"></i> Buscando endereço...</p>}
+                                                        {erroCep && <p className="text-xs md:text-sm text-red-400 mt-3 font-bold bg-red-500/10 p-3 rounded-lg"><i className="fas fa-exclamation-circle mr-2"></i>{erroCep}</p>}
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">Endereço Completo</label>
+                                                        <textarea value={clienteDados.endereco || ''} onChange={e => setClienteDados({...clienteDados, endereco: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 resize-none text-base" rows="2" placeholder="Rua, Número, Bairro"></textarea>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">Ponto de Referência</label>
+                                                        <input type="text" value={clienteDados.referencia || ''} onChange={e => setClienteDados({...clienteDados, referencia: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 text-base" placeholder="Apto, Bloco, Casa de esquina..." />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <button type="submit" disabled={clienteAuthLoading} className={`w-full bg-[#d79e51] text-[#1a191c] font-black text-lg md:text-xl py-4 md:py-5 rounded-xl md:rounded-2xl shadow-[0_10px_30px_rgba(215,158,81,0.3)] transition-all mt-8 tracking-wider ${clienteAuthLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[#e8b776] active:scale-95'}`}>
+                                                {clienteAuthLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>CRIANDO...</> : 'CRIAR CONTA'}
+                                            </button>
+                                        </form>
+                                    )}
+                                </div>
+                            ) : clienteEditandoPerfil ? (
                                 <form onSubmit={(e) => { e.preventDefault(); salvarPerfil(); }} className="w-full max-w-md md:max-w-xl space-y-5 md:space-y-6 bg-[#1f1e22] p-6 md:p-10 rounded-3xl border border-gray-800 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                                    <div>
-                                        <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 md:mb-3 ml-1 uppercase tracking-widest">Nome Completo</label>
-                                        <input type="text" value={clienteDados.nome} onChange={e => setClienteDados({...clienteDados, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required placeholder="Como gosta de ser chamado?" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 md:mb-3 ml-1 uppercase tracking-widest">Celular (WhatsApp)</label>
-                                        <input type="tel" value={clienteDados.celular} onChange={e => setClienteDados({...clienteDados, celular: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-[#d79e51] focus:ring-1 focus:ring-[#d79e51] transition-all text-base md:text-lg" required placeholder="(00) 90000-0000" />
-                                    </div>
-                                    <div className="border-t border-gray-800 pt-6 md:pt-8 mt-4 md:mt-6">
-                                        <h4 className="text-white text-base md:text-lg font-black uppercase tracking-widest mb-5 flex items-center"><i className="fas fa-map-marker-alt text-[#d79e51] mr-3"></i> Endereço de Entrega</h4>
-                                        <div className="space-y-5">
-                                            <div>
-                                                <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">CEP</label>
-                                                <input type="text" value={clienteDados.cep || ''} onBlur={(e) => buscarCep(e.target.value)} onChange={e => setClienteDados({...clienteDados, cep: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 transition-all text-base" placeholder="00000-000" />
-                                                {cepBuscando && <p className="text-xs md:text-sm text-[#d79e51] mt-3 font-medium flex items-center"><i className="fas fa-spinner fa-spin mr-2"></i> Buscando endereço e validando área...</p>}
-                                                {erroCep && <p className="text-xs md:text-sm text-red-400 mt-3 font-bold flex items-center bg-red-500/10 p-3 rounded-lg"><i className="fas fa-exclamation-circle mr-2"></i>{erroCep}</p>}
-                                            </div>
-                                            <div>
-                                                <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">Endereço Completo</label>
-                                                <textarea value={clienteDados.endereco || ''} onChange={e => setClienteDados({...clienteDados, endereco: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 transition-all resize-none text-base" rows="2" placeholder="Rua, Número, Bairro"></textarea>
-                                            </div>
-                                            <div>
-                                                <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 ml-1 uppercase tracking-wider">Ponto de Referência</label>
-                                                <input type="text" value={clienteDados.referencia || ''} onChange={e => setClienteDados({...clienteDados, referencia: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700/80 rounded-xl md:rounded-2xl px-5 py-4 focus:outline-none focus:border-gray-500 transition-all text-base" placeholder="Apto, Bloco, Casa de esquina..." />
-                                            </div>
+                                    <div className="flex items-center justify-between gap-3 border-b border-gray-800 pb-5">
+                                        <div>
+                                            <span className="text-gray-500 text-[10px] md:text-xs uppercase tracking-widest font-bold">Conta</span>
+                                            <p className="text-white font-bold text-sm md:text-base mt-1 break-all">{clienteEmail}</p>
                                         </div>
+                                        <button type="button" onClick={() => setClienteEditandoPerfil(false)} className="text-gray-400 hover:text-white w-10 h-10 rounded-xl border border-gray-700"><i className="fas fa-times"></i></button>
                                     </div>
-                                    <button type="submit" className="w-full bg-[#d79e51] text-[#1a191c] font-black text-xl md:text-2xl py-4 md:py-5 rounded-xl md:rounded-2xl shadow-[0_10px_30px_rgba(215,158,81,0.3)] hover:bg-[#e8b776] hover:shadow-[0_15px_40px_rgba(215,158,81,0.4)] active:scale-95 transition-all mt-8 md:mt-10 tracking-wider">ACESSAR / SALVAR</button>
+
+                                    <div>
+                                        <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 uppercase tracking-widest">Nome Completo</label>
+                                        <input type="text" value={clienteDados.nome} onChange={e => setClienteDados({...clienteDados, nome: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl px-5 py-4 focus:outline-none focus:border-[#d79e51]" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[#d79e51] text-xs md:text-sm font-bold mb-2 uppercase tracking-widest">Celular</label>
+                                        <input type="tel" value={clienteDados.celular} onChange={e => setClienteDados({...clienteDados, celular: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl px-5 py-4 focus:outline-none focus:border-[#d79e51]" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 uppercase tracking-wider">CEP</label>
+                                        <input type="text" value={clienteDados.cep || ''} onBlur={(e) => buscarCep(e.target.value)} onChange={e => setClienteDados({...clienteDados, cep: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl px-5 py-4 focus:outline-none focus:border-[#d79e51]" />
+                                        {cepBuscando && <p className="text-xs text-[#d79e51] mt-2"><i className="fas fa-spinner fa-spin mr-2"></i>Buscando endereço...</p>}
+                                        {erroCep && <p className="text-xs text-red-400 mt-2">{erroCep}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 uppercase tracking-wider">Endereço Completo</label>
+                                        <textarea value={clienteDados.endereco || ''} onChange={e => setClienteDados({...clienteDados, endereco: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl px-5 py-4 focus:outline-none focus:border-[#d79e51] resize-none" rows="2"></textarea>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-400 text-xs md:text-sm font-bold mb-2 uppercase tracking-wider">Ponto de Referência</label>
+                                        <input type="text" value={clienteDados.referencia || ''} onChange={e => setClienteDados({...clienteDados, referencia: e.target.value})} className="w-full bg-[#1a191c] text-white border border-gray-700 rounded-xl px-5 py-4 focus:outline-none focus:border-[#d79e51]" />
+                                    </div>
+
+                                    <button type="submit" disabled={clienteAuthLoading} className={`w-full bg-[#d79e51] text-[#1a191c] font-black py-4 rounded-xl uppercase tracking-widest ${clienteAuthLoading ? 'opacity-60' : 'hover:bg-[#e8b776]'}`}>
+                                        {clienteAuthLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>SALVANDO...</> : 'SALVAR ALTERAÇÕES'}
+                                    </button>
                                 </form>
                             ) : (
                                 <div className="w-full max-w-md md:max-w-xl space-y-4 md:space-y-6">
                                     <div className="bg-[#1f1e22] border border-gray-800 rounded-3xl p-6 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
-                                        <div className="mb-6 md:mb-8 border-b border-gray-800 pb-6 md:pb-8 flex items-center">
+                                        <div className="mb-6 md:mb-8 border-b border-gray-800 pb-6 flex items-center">
                                             <div className="w-14 h-14 md:w-20 md:h-20 bg-[#363539] rounded-full flex items-center justify-center mr-4 md:mr-6 text-white text-2xl md:text-3xl border-2 border-gray-700 shadow-inner">
-                                                <i className="fas fa-user"></i>
+                                                <i className="fas fa-user-check text-[#d79e51]"></i>
                                             </div>
-                                            <div>
-                                                <span className="block text-gray-500 text-xs md:text-sm font-bold mb-1 md:mb-2 uppercase tracking-widest">Nome Completo</span>
-                                                <span className="text-white text-xl md:text-3xl font-black tracking-wide">{clienteDados.nome}</span>
+                                            <div className="min-w-0">
+                                                <span className="block text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Conta conectada</span>
+                                                <span className="text-white text-xl md:text-3xl font-black tracking-wide block">{clienteDados.nome || 'Cliente'}</span>
+                                                <span className="text-gray-500 text-xs md:text-sm mt-1 block truncate">{clienteEmail}</span>
                                             </div>
                                         </div>
-                                        <div className="mb-6 md:mb-8 border-b border-gray-800 pb-6 md:pb-8">
-                                            <span className="block text-gray-500 text-xs md:text-sm font-bold mb-3 uppercase tracking-widest flex items-center"><i className="fab fa-whatsapp mr-2 text-[#d79e51] text-base md:text-lg"></i> Celular</span>
-                                            <span className="text-white text-lg md:text-xl font-bold tracking-widest bg-[#1a191c] px-5 py-3 md:py-4 rounded-xl md:rounded-2xl inline-block border border-gray-800 shadow-inner">{clienteDados.celular}</span>
+
+                                        <div className="mb-6 border-b border-gray-800 pb-6">
+                                            <span className="block text-gray-500 text-xs md:text-sm font-bold mb-3 uppercase tracking-widest"><i className="fab fa-whatsapp mr-2 text-[#d79e51]"></i> Celular</span>
+                                            <span className="text-white text-lg font-bold">{clienteDados.celular || 'Não cadastrado'}</span>
                                         </div>
+
                                         <div>
-                                            <span className="block text-gray-500 text-xs md:text-sm font-bold mb-3 uppercase tracking-widest flex items-center"><i className="fas fa-map-marker-alt mr-2 text-[#d79e51] text-base md:text-lg"></i> Endereço de Entrega</span>
+                                            <span className="block text-gray-500 text-xs md:text-sm font-bold mb-3 uppercase tracking-widest"><i className="fas fa-map-marker-alt mr-2 text-[#d79e51]"></i> Endereço de Entrega</span>
                                             <div className="bg-[#1a191c] p-5 md:p-6 rounded-2xl border border-gray-800 shadow-inner">
+                                                {clienteDados.cep && <span className="text-gray-500 text-xs block mb-2">CEP {clienteDados.cep}</span>}
                                                 <span className="text-gray-200 text-sm md:text-base block leading-relaxed font-medium">{clienteDados.endereco || <span className="italic text-gray-500">Não cadastrado</span>}</span>
                                                 {clienteDados.referencia && <span className="block text-gray-400 text-xs md:text-sm mt-3 border-t border-gray-800 pt-3"><strong className="text-gray-500 uppercase tracking-widest mr-2">Ref:</strong> {clienteDados.referencia}</span>}
-                                                {erroCep && erroCep.includes('Não fazemos entrega') && <span className="block text-red-400 text-xs md:text-sm mt-3 font-bold p-3 bg-red-500/10 rounded-xl"><i className="fas fa-exclamation-triangle mr-2"></i> {erroCep}</span>}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-5 mt-6 md:mt-8">
-                                        <button onClick={() => setClienteAuth(false)} className="w-full bg-[#363539] border border-gray-700 text-white py-4 md:py-5 rounded-2xl font-bold text-sm md:text-base uppercase tracking-wider hover:bg-[#d79e51] hover:text-[#1a191c] hover:border-[#d79e51] transition-all shadow-md">Editar Perfil</button>
-                                        <button onClick={() => {setClienteAuth(false); setClienteDados({nome:'', celular:'', cep:'', endereco:'', referencia:'', lat:null, lng:null}); setErroCep(''); localStorage.removeItem('cliente_nome'); localStorage.removeItem('cliente_celular'); localStorage.removeItem('cliente_cep'); localStorage.removeItem('cliente_endereco'); localStorage.removeItem('cliente_referencia');}} className="w-full bg-[#1a191c] border border-red-900/50 text-red-400 py-4 md:py-5 rounded-2xl font-bold text-sm md:text-base uppercase tracking-wider hover:bg-red-900/20 hover:text-red-300 transition-all shadow-md">Sair da Conta</button>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-5">
+                                        <button onClick={() => setClienteEditandoPerfil(true)} className="w-full bg-[#363539] border border-gray-700 text-white py-4 md:py-5 rounded-2xl font-bold text-sm md:text-base uppercase tracking-wider hover:bg-[#d79e51] hover:text-[#1a191c] hover:border-[#d79e51] transition-all shadow-md">
+                                            <i className="fas fa-pen mr-2"></i>Editar Perfil
+                                        </button>
+                                        <button onClick={sairCliente} className="w-full bg-[#1a191c] border border-red-900/50 text-red-400 py-4 md:py-5 rounded-2xl font-bold text-sm md:text-base uppercase tracking-wider hover:bg-red-900/20 hover:text-red-300 transition-all shadow-md">
+                                            <i className="fas fa-sign-out-alt mr-2"></i>Sair da Conta
+                                        </button>
                                     </div>
                                 </div>
                             )}
