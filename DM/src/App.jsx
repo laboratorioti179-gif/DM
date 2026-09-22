@@ -2477,6 +2477,7 @@ const App = () => {
         const numeroCurto = numeroPedidoVisivel(pedido);
 
         // A TM-T20X usa bobina de 80 mm (79,5 mm nominal).
+        // Tipografia reduzida em um nível para melhorar o encaixe e a leitura na térmica.
         // O conteúdo é limitado a ~72 mm para respeitar a área útil do driver.
         const win = window.open('', '_blank', 'width=420,height=780');
 
@@ -2515,7 +2516,7 @@ const App = () => {
                     }
 
                     body {
-                        font-size: 28px;
+                        font-size: 26px;
                         line-height: 1.12;
                     }
 
@@ -2532,7 +2533,7 @@ const App = () => {
                     .uppercase { text-transform: uppercase; }
 
                     .loja {
-                        font-size: 40px;
+                        font-size: 36px;
                         font-weight: 900;
                         line-height: 1.1;
                         text-transform: uppercase;
@@ -2540,7 +2541,7 @@ const App = () => {
                     }
 
                     .pedido-numero {
-                        font-size: 34px;
+                        font-size: 31px;
                         font-weight: 900;
                         margin-top: 1.5mm;
                     }
@@ -2550,7 +2551,7 @@ const App = () => {
                         margin-top: 1.5mm;
                         border: 1px solid #000;
                         padding: 1mm 3mm;
-                        font-size: 30px;
+                        font-size: 28px;
                         font-weight: 900;
                     }
 
@@ -2572,7 +2573,7 @@ const App = () => {
                     }
 
                     .titulo-bloco {
-                        font-size: 29px;
+                        font-size: 27px;
                         font-weight: 900;
                         margin-bottom: 1.5mm;
                     }
@@ -2600,12 +2601,12 @@ const App = () => {
                     }
 
                     .item-unitario {
-                        font-size: 25px;
+                        font-size: 23px;
                         margin-top: 0.4mm;
                     }
 
                     .item-obs {
-                        font-size: 26px;
+                        font-size: 24px;
                         margin-top: 0.8mm;
                         padding-left: 2mm;
                         border-left: 2px solid #000;
@@ -2620,14 +2621,14 @@ const App = () => {
                     }
 
                     .total-final {
-                        font-size: 38px;
+                        font-size: 34px;
                         font-weight: 900;
                         margin-top: 1.5mm;
                     }
 
                     .rodape {
                         margin-top: 3mm;
-                        font-size: 25px;
+                        font-size: 23px;
                         text-align: center;
                     }
 
@@ -2719,8 +2720,11 @@ const App = () => {
                     window.addEventListener('load', function () {
                         setTimeout(function () {
                             window.focus();
+                            // Dispara a impressão assim que a nota estiver pronta.
+                            // Com Chrome iniciado com --kiosk-printing, a TM-T20X padrão recebe
+                            // o trabalho diretamente, sem abrir a caixa de diálogo.
                             window.print();
-                        }, 250);
+                        }, 150);
                     });
 
                     window.addEventListener('afterprint', function () {
