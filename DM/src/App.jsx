@@ -146,6 +146,26 @@ const App = () => {
     const [supabase, setSupabase] = useState(null);
     const [dbLoading, setDbLoading] = useState(true);
 
+    // Regra única de autorização administrativa.
+    // app_metadata é controlado pelo servidor no Supabase e não pode ser alterado pelo próprio cliente.
+    // Mantemos os dois e-mails administrativos existentes como compatibilidade legada.
+    const obterPermissaoAdmin = (user) => {
+        const meta = user?.app_metadata || {};
+        const role = String(meta.role || '').toLowerCase();
+        const email = String(user?.email || '').trim().toLowerCase();
+        const emailsAdminLegados = ['dogsdomirso.ls@outlook.com', 'dogsdomirso.ls2@outlook.com'];
+        const emailLegadoAutorizado = emailsAdminLegados.includes(email);
+        const roleAutorizada = ['admin', 'matriz'].includes(role);
+        const restauranteConfigurado = Boolean(meta.restaurante_id);
+
+        return {
+            autorizado: Boolean(email) && (roleAutorizada || restauranteConfigurado || emailLegadoAutorizado),
+            email,
+            role: role || (email === 'dogsdomirso.ls@outlook.com' ? 'matriz' : 'admin'),
+            restauranteId: meta.restaurante_id || null
+        };
+    };
+
     const isMatriz = adminRole === 'matriz' || adminEmail === 'dogsdomirso.ls@outlook.com';
     const isFranquia2 = adminEmail === 'dogsdomirso.ls2@outlook.com';
     
@@ -1759,22 +1779,12 @@ const App = () => {
             const user = session?.user || null;
             setAuthUserId(user?.id || null);
 
-            const meta = user?.app_metadata || {};
-            const role = String(meta.role || '').toLowerCase();
-            const email = String(user?.email || '').toLowerCase();
+            const acessoAdmin = obterPermissaoAdmin(user);
 
-            const usuarioAdmin =
-                Boolean(user?.email) &&
-                (
-                    ['admin', 'matriz'].includes(role) ||
-                    Boolean(meta.restaurante_id) ||
-                    ['dogsdomirso.ls@outlook.com', 'dogsdomirso.ls2@outlook.com'].includes(email)
-                );
-
-            if (usuarioAdmin) {
+            if (acessoAdmin.autorizado) {
                 setAdminEmail(user.email);
-                setAdminRole(role || 'admin');
-                setAdminRestauranteId(meta.restaurante_id || null);
+                setAdminRole(acessoAdmin.role);
+                setAdminRestauranteId(acessoAdmin.restauranteId);
                 setIsAdmin(true);
                 setClienteAuth(false);
             } else {
@@ -1991,19 +2001,34 @@ const App = () => {
             if (error) throw error;
 
             const user = data.user;
-            const meta = user?.app_metadata || {};
+            const acessoAdmin = obterPermissaoAdmin(user);
+
+            if (!acessoAdmin.autorizado) {
+                await supabase.auth.signOut();
+                setIsAdmin(false);
+                setAdminEmail('');
+                setAdminRole('');
+                setAdminRestauranteId(null);
+                throw new Error('ADMIN_SEM_PERMISSAO');
+            }
+
             setAdminEmail(user?.email || email);
-            setAdminRole(meta.role || 'admin');
-            setAdminRestauranteId(meta.restaurante_id || null);
+            setAdminRole(acessoAdmin.role);
+            setAdminRestauranteId(acessoAdmin.restauranteId);
             setIsAdmin(true);
+            setClienteAuth(false);
             setView('home');
 
-            if (!meta.restaurante_id) {
+            if (!acessoAdmin.restauranteId) {
                 console.warn('Administrador autenticado sem restaurante_id em app_metadata. Configure-o no Supabase Auth.');
             }
         } catch (err) {
             console.error('Falha no login administrativo:', err);
-            alert('Credenciais inválidas ou usuário administrativo não configurado no Supabase Auth.');
+            if (err?.message === 'ADMIN_SEM_PERMISSAO') {
+                alert('Esta conta não possui permissão para acessar a área administrativa.');
+            } else {
+                alert('Credenciais inválidas ou usuário administrativo não configurado no Supabase Auth.');
+            }
         } finally {
             setAdminLoginLoading(false);
         }
