@@ -2292,54 +2292,51 @@ const App = () => {
             const usuario = await garantirSessaoCliente();
             if (!usuario) throw new Error('Sessão do cliente indisponível.');
 
-            const subtotalCalc = carrinho.reduce(
-                (sum, item) => sum + (Number(item.preco) * Number(item.quantidade)),
-                0
-            );
+            // SEGURANÇA DE PREÇO:
+            // O navegador envia somente a identidade dos produtos, quantidades e observações.
+            // Preço unitário, desconto, subtotal e total são recalculados dentro do Supabase
+            // pela RPC criar_pedido_seguro, consultando a tabela produtos.
+            const itensParaServidor = carrinho.map(item => ({
+                produto_id: String(item.id),
+                quantidade: Math.max(1, Math.trunc(Number(item.quantidade) || 1)),
+                observacao: String(item.observacao || '').slice(0, 500),
+                tipo_item: item.tipo_item === 'adicional' ? 'adicional' : 'produto',
+                produto_principal_id: item.produto_principal_id ? String(item.produto_principal_id) : null,
+                produto_principal_nome: item.produto_principal_nome || null
+            }));
+
+            // A taxa ainda é exibida/calculada no app, mas o servidor aceita apenas os
+            // valores previstos pela regra atual: retirada = 0; entrega = R$ 2 ou R$ 5.
+            // A validação geográfica completa (CEP/raio) é tratada separadamente.
             const taxaCalc = obterTaxaEntregaAtual();
-            const totalCalc = subtotalCalc + taxaCalc;
-            const itensLimpos = carrinho.map(({ cartKey, ...item }) => item);
 
-            const novoPedido = {
-                id: Math.random().toString(36).substring(2, 9),
-                cliente_user_id: usuario.id,
-                cliente_nome: clienteDados.nome,
-                cliente_celular: clienteDados.celular,
-                total: totalCalc,
-                status: 'novo',
-                motivo_rejeicao: null,
-                itens: {
-                    filial_id: restaurante.id,
-                    filial_nome: restaurante.nome,
-                    lanches: itensLimpos,
-                    subtotal: subtotalCalc,
-                    taxa_entrega: taxaCalc,
-                    bairro_cliente: clienteDados.bairro || '',
-                    bairro_loja: bairroLoja || '',
-                    distancia_entrega_km: distanciaEntrega,
-                    tipo_recebimento: checkoutForm.tipo,
-                    endereco: checkoutForm.tipo === 'entrega' ? clienteDados.endereco : 'Retirada',
-                    referencia: checkoutForm.tipo === 'entrega' ? clienteDados.referencia : '',
-                    pagamento: checkoutForm.pagamento,
-                    troco: checkoutForm.troco,
-                    whatsapp_loja: restaurante.whatsapp || ''
-                }
-            };
-
-            const { data: pedidoCriado, error } = await supabase
-                .from('pedidos')
-                .insert([novoPedido])
-                .select('id,numero_pedido')
-                .single();
+            const { data: pedidoCriado, error } = await supabase.rpc('criar_pedido_seguro', {
+                p_restaurante_id: String(restaurante.id),
+                p_itens: itensParaServidor,
+                p_tipo_recebimento: checkoutForm.tipo,
+                p_endereco: checkoutForm.tipo === 'entrega' ? clienteDados.endereco : 'Retirada',
+                p_referencia: checkoutForm.tipo === 'entrega' ? clienteDados.referencia : '',
+                p_pagamento: checkoutForm.pagamento,
+                p_troco: checkoutForm.pagamento === 'Dinheiro' ? checkoutForm.troco : '',
+                p_taxa_entrega: taxaCalc,
+                p_bairro_cliente: clienteDados.bairro || '',
+                p_bairro_loja: bairroLoja || '',
+                p_distancia_entrega_km: Number.isFinite(Number(distanciaEntrega)) ? Number(distanciaEntrega) : null
+            });
 
             if (error) throw error;
+            if (!pedidoCriado?.id) throw new Error('O servidor não retornou a confirmação do pedido.');
 
             setCarrinho([]);
             await carregarMeusPedidos();
             setView('pedidos');
 
             const numeroCriado = numeroPedidoVisivel(pedidoCriado);
-            alert(`Pedido #${numeroCriado} enviado com sucesso!`);
+            const totalConfirmado = Number(pedidoCriado.total);
+            const totalMensagem = Number.isFinite(totalConfirmado)
+                ? ` Total confirmado: R$ ${totalConfirmado.toFixed(2).replace('.', ',')}.`
+                : '';
+            alert(`Pedido #${numeroCriado} enviado com sucesso!${totalMensagem}`);
         } catch (err) {
             console.error("Erro ao finalizar pedido:", err);
             alert(`O pedido NÃO foi enviado. ${err.message || 'Tente novamente.'}`);
