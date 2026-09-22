@@ -147,34 +147,44 @@ const App = () => {
     const [dbLoading, setDbLoading] = useState(true);
 
     // Regra única de autorização administrativa.
-    // app_metadata é controlado pelo servidor no Supabase e não pode ser alterado pelo próprio cliente.
-    // Mantemos os dois e-mails administrativos existentes como compatibilidade legada.
+    // As duas contas abaixo são autorizações explícitas do sistema:
+    // - conta principal = matriz
+    // - conta ls2 = administradora exclusiva do Bairro 2 / segunda unidade
+    const EMAIL_ADMIN_MATRIZ = 'dogsdomirso.ls@outlook.com';
+    const EMAIL_ADMIN_BAIRRO_2 = 'dogsdomirso.ls2@outlook.com';
+
     const obterPermissaoAdmin = (user) => {
         const meta = user?.app_metadata || {};
         const role = String(meta.role || '').toLowerCase();
         const email = String(user?.email || '').trim().toLowerCase();
-        const emailsAdminLegados = ['dogsdomirso.ls@outlook.com', 'dogsdomirso.ls2@outlook.com'];
-        const emailLegadoAutorizado = emailsAdminLegados.includes(email);
+        const ehMatrizExplicita = email === EMAIL_ADMIN_MATRIZ;
+        const ehAdminBairro2 = email === EMAIL_ADMIN_BAIRRO_2;
+        const emailExplicitoAutorizado = ehMatrizExplicita || ehAdminBairro2;
         const roleAutorizada = ['admin', 'matriz'].includes(role);
         const restauranteConfigurado = Boolean(meta.restaurante_id);
 
         return {
-            autorizado: Boolean(email) && (roleAutorizada || restauranteConfigurado || emailLegadoAutorizado),
+            autorizado: Boolean(email) && (roleAutorizada || restauranteConfigurado || emailExplicitoAutorizado),
             email,
-            role: role || (email === 'dogsdomirso.ls@outlook.com' ? 'matriz' : 'admin'),
+            // A conta do Bairro 2 nunca recebe privilégios de matriz, mesmo que haja metadata incorreto.
+            role: ehMatrizExplicita ? 'matriz' : (ehAdminBairro2 ? 'admin' : (role || 'admin')),
             restauranteId: meta.restaurante_id || null
         };
     };
 
-    const isMatriz = adminRole === 'matriz' || adminEmail === 'dogsdomirso.ls@outlook.com';
-    const isFranquia2 = adminEmail === 'dogsdomirso.ls2@outlook.com';
+    const isFranquia2 = adminEmail === EMAIL_ADMIN_BAIRRO_2;
+    const isMatriz = adminEmail === EMAIL_ADMIN_MATRIZ || (adminRole === 'matriz' && !isFranquia2);
     
     const lojaMatriz = lojas.length > 0 ? lojas[0] : null;
     const lojaFranquia = lojas.length > 1 ? lojas[1] : (lojas.length > 0 ? lojas[0] : null);
     
-    const adminLojaAtual = adminRestauranteId
-        ? (lojas.find(l => String(l.id) === String(adminRestauranteId)) || lojaMatriz)
-        : (isFranquia2 ? lojaFranquia : lojaMatriz);
+    // A conta ls2 fica sempre vinculada à segunda unidade (Bairro 2).
+    // Para os demais administradores, restaurante_id do Supabase continua tendo prioridade.
+    const adminLojaAtual = isFranquia2
+        ? lojaFranquia
+        : (adminRestauranteId
+            ? (lojas.find(l => String(l.id) === String(adminRestauranteId)) || lojaMatriz)
+            : lojaMatriz);
     const idAdminLogado = adminLojaAtual ? adminLojaAtual.id : null;
 
     // Mantém Sobremesa e Adicionais visíveis no cadastro, mesmo antes de existirem no banco.
@@ -1349,7 +1359,7 @@ const App = () => {
             const usuarioAdmin =
                 ['admin', 'matriz'].includes(role) ||
                 Boolean(meta.restaurante_id) ||
-                ['dogsdomirso.ls@outlook.com', 'dogsdomirso.ls2@outlook.com'].includes(String(user?.email || '').toLowerCase());
+                [EMAIL_ADMIN_MATRIZ, EMAIL_ADMIN_BAIRRO_2].includes(String(user?.email || '').toLowerCase());
 
             if (usuarioAdmin) {
                 await supabase.auth.signOut();
