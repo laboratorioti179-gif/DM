@@ -2516,7 +2516,7 @@ const App = () => {
                     }
 
                     body {
-                        font-size: 26px;
+                        font-size: 24px;
                         line-height: 1.12;
                     }
 
@@ -2533,7 +2533,7 @@ const App = () => {
                     .uppercase { text-transform: uppercase; }
 
                     .loja {
-                        font-size: 36px;
+                        font-size: 34px;
                         font-weight: 900;
                         line-height: 1.1;
                         text-transform: uppercase;
@@ -2541,7 +2541,7 @@ const App = () => {
                     }
 
                     .pedido-numero {
-                        font-size: 31px;
+                        font-size: 29px;
                         font-weight: 900;
                         margin-top: 1.5mm;
                     }
@@ -2551,7 +2551,7 @@ const App = () => {
                         margin-top: 1.5mm;
                         border: 1px solid #000;
                         padding: 1mm 3mm;
-                        font-size: 28px;
+                        font-size: 26px;
                         font-weight: 900;
                     }
 
@@ -2573,7 +2573,7 @@ const App = () => {
                     }
 
                     .titulo-bloco {
-                        font-size: 27px;
+                        font-size: 25px;
                         font-weight: 900;
                         margin-bottom: 1.5mm;
                     }
@@ -2601,12 +2601,12 @@ const App = () => {
                     }
 
                     .item-unitario {
-                        font-size: 23px;
+                        font-size: 21px;
                         margin-top: 0.4mm;
                     }
 
                     .item-obs {
-                        font-size: 24px;
+                        font-size: 22px;
                         margin-top: 0.8mm;
                         padding-left: 2mm;
                         border-left: 2px solid #000;
@@ -2621,14 +2621,14 @@ const App = () => {
                     }
 
                     .total-final {
-                        font-size: 34px;
+                        font-size: 32px;
                         font-weight: 900;
                         margin-top: 1.5mm;
                     }
 
                     .rodape {
                         margin-top: 3mm;
-                        font-size: 23px;
+                        font-size: 21px;
                         text-align: center;
                     }
 
