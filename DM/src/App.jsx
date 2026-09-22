@@ -2877,14 +2877,6 @@ const App = () => {
                                     <span className="text-sm font-medium">Configurações</span>
                                 </button>
                             </li>
-                            {isMatriz && (
-                                <li>
-                                    <button onClick={() => setAdminView('nova_loja')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'nova_loja' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
-                                        <i className={`fas fa-store w-6 ${adminView === 'nova_loja' ? 'text-[#d79e51]' : ''}`}></i>
-                                        <span className="text-sm font-medium">Nova Loja</span>
-                                    </button>
-                                </li>
-                            )}
                             <li>
                                 <button onClick={() => setAdminView('financeiro')} className={`w-full flex items-center px-4 py-3 rounded-lg border transition-all ${adminView === 'financeiro' ? 'bg-[#363539] text-white border-gray-700 shadow-sm' : 'border-transparent text-gray-400 hover:bg-[#363539] hover:text-white'}`}>
                                     <i className={`fas fa-dollar-sign w-6 ${adminView === 'financeiro' ? 'text-[#d79e51]' : ''}`}></i>
